@@ -1,0 +1,116 @@
+name: Release
+
+# Declenche par un tag de version (ex : v1.0.0). Cree la release GitHub en
+# BROUILLON, puis compile un binaire par OS et le joint au brouillon ; on le
+# publie a la main apres verification des fichiers. macOS : app universelle
+# (Intel et Apple Silicon) livree en image disque (.dmg, glisser dans
+# Applications).
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  WAILS_VERSION: v2.16.0
+
+permissions:
+  contents: write
+
+jobs:
+  # Brouillon cree UNE fois avant les builds : l'API ne retrouve pas un brouillon
+  # par son tag, des jobs paralleles en creeraient chacun un.
+  brouillon:
+    name: brouillon de release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Creer le brouillon
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "Merlinus $GITHUB_REF_NAME" --verify-tag
+
+  release:
+    name: release (${{ matrix.name }})
+    needs: brouillon
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux : construit sur la plus ancienne Ubuntu supportee (glibc 2.35)
+          # pour tourner aussi sur Ubuntu 22.04 et Debian 12.
+          - name: linux-amd64
+            runner: ubuntu-22.04
+            build: wails build -clean -tags webkit2_41
+            asset: merlinus-linux-amd64.tar.gz
+          - name: linux-arm64
+            runner: ubuntu-22.04-arm
+            build: wails build -clean -tags webkit2_41
+            asset: merlinus-linux-arm64.tar.gz
+          - name: windows-amd64
+            runner: windows-latest
+            build: wails build -clean
+            asset: merlinus-windows-amd64.exe
+          # Windows ARM : compilation croisee depuis le runner x64 (sans cgo).
+          - name: windows-arm64
+            runner: windows-latest
+            build: wails build -clean -platform windows/arm64
+            asset: merlinus-windows-arm64.exe
+          - name: macos
+            runner: macos-latest
+            build: wails build -clean -platform darwin/universal
+            asset: Merlinus-macos.dmg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: Dependances systeme (Linux)
+        if: startsWith(matrix.name, 'linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Installer le CLI Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Build
+        run: ${{ matrix.build }}
+
+      # Renommage / empaquetage de la sortie (build/bin) au nom d'asset attendu.
+      # Linux : binaire + lanceur .desktop + icone (voir README pour l'installation).
+      - name: Empaqueter (Linux)
+        if: startsWith(matrix.name, 'linux')
+        run: |
+          mkdir -p paquet/merlinus
+          mv build/bin/Merlinus paquet/merlinus/merlinus
+          cp build/linux/merlinus.desktop paquet/merlinus/
+          cp build/appicon.png paquet/merlinus/merlinus.png
+          tar -C paquet -czf "${{ matrix.asset }}" merlinus
+
+      - name: Empaqueter (Windows)
+        if: startsWith(matrix.name, 'windows')
+        shell: bash
+        run: mv build/bin/Merlinus.exe "${{ matrix.asset }}"
+
+      - name: Empaqueter (macOS)
+        if: matrix.name == 'macos'
+        run: scripts/dmg.sh "${{ matrix.asset }}"
+
+      - name: Joindre au brouillon
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # gh n'est pas garanti sur toutes les images (ex. Linux ARM) : secours apt.
+          command -v gh >/dev/null || { sudo apt-get update && sudo apt-get install -y gh; }
+          gh release upload "$GITHUB_REF_NAME" "${{ matrix.asset }}" --repo "$GITHUB_REPOSITORY" --clobber

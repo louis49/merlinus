@@ -1,0 +1,11 @@
+# Reglages par defaut pour act (test local des workflows GitHub Actions).
+# Ces lignes sont passees a act comme des arguments.
+
+# Image contenant Go, Node, apt (compatible avec nos etapes de build).
+-P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+-P ubuntu-24.04=catthehacker/ubuntu:act-24.04
+-P ubuntu-latest=catthehacker/ubuntu:act-24.04
+
+# Machine arm64 (Apple Silicon) : forcer l'archi des conteneurs.
+# Les images GitHub Actions sont amd64 ; sans ca, emulation ou echec.
+--container-architecture linux/amd64

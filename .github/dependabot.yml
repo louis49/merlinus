@@ -1,0 +1,28 @@
+# Mises a jour des dependances : une fois par mois, mineures et correctives
+# regroupees en une seule PR par ecosysteme (chaque PR lance la CI sur les
+# 3 systemes), les majeures a part pour etre examinees une a une.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      go:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+    groups:
+      npm:
+        update-types: [minor, patch]

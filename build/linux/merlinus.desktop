@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Merlinus
+Comment=Studio d'histoires libre pour la boîte Merlin
+Comment[en]=Free story studio for the Merlin story box
+Exec=merlinus
+Icon=merlinus
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupWMClass=merlinus

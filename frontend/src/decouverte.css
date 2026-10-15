@@ -1,0 +1,93 @@
+/* CSS DEDIEE du composant de decouverte (creerDecouverte).
+   Auto-suffisante : tout le rendu vient de ces classes `dec-*`, donc l'accueil
+   (Welcome) et le modal d'ajout (Add) sont STRICTEMENT identiques. Les couleurs
+   passent par les variables globales --ciel-* (theme-aware). Aucun style de la
+   carte ne depend de l'hote : l'hote ne fournit que le fond et le centrage. */
+
+.dec-card {
+  position: relative; width: min(560px, 100%); margin: 0 auto; box-sizing: border-box; overflow: hidden;
+  border-radius: 28px; border: 1px solid var(--ciel-bord); box-shadow: var(--shadow);
+  background: linear-gradient(180deg, var(--ciel-haut) 0%, var(--ciel-bas) 100%);
+  color: var(--ciel-texte); text-align: center; padding: 48px 40px 40px;
+}
+.dec-card::before {
+  content: ""; position: absolute; left: 50%; top: 60px; width: 300px; height: 300px;
+  transform: translateX(-50%); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, var(--ciel-halo) 0%, rgba(0, 0, 0, 0) 65%);
+}
+.dec-in { position: relative; }
+
+.dec-icone { width: 96px; height: 96px; margin: 0 auto 14px; display: block;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, .25)); }
+.dec-marque { font-family: var(--f-titre); font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; font-size: 14px; color: var(--gold); margin-bottom: 4px; }
+.dec-sub { font-family: var(--f-corps); font-weight: 600; font-size: 12.5px;
+  color: var(--ciel-attenue); margin: 0 0 8px; }
+
+/* Zone de flot a hauteur stable (evite que la carte saute entre phases) */
+.dec-flot { min-height: 200px; display: flex; flex-direction: column; justify-content: center; }
+
+.dec-titre { font-family: var(--f-titre); font-size: clamp(24px, 4vw, 32px); font-weight: 700;
+  line-height: 1.2; margin: 0 auto; max-width: 22ch; }
+.dec-accroche { margin: 16px auto 0; max-width: 44ch; font-size: 15.5px; color: var(--ciel-attenue); }
+.dec-accroche span { display: block; }
+.dec-accroche span + span { margin-top: 8px; }
+.dec-accroche strong { color: var(--ciel-texte); font-weight: 700; }
+
+.dec-etat { display: inline-flex; align-items: center; gap: 10px; margin-top: 26px;
+  background: var(--ciel-carte); border: 1px solid var(--ciel-carte-bord);
+  border-radius: 999px; padding: 10px 18px; font-size: 14.5px; color: var(--ciel-texte); }
+.dec-pastille { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--gold); }
+.dec-pastille.attente { animation: dec-pulse 1.4s ease-in-out infinite; }
+.dec-pastille.active { background: #8CC7A6; }
+@keyframes dec-pulse { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+
+.dec-lecture { margin-top: 22px; }
+.dec-lecture .dec-etat { margin-top: 0; }
+.dec-prog { margin-top: 14px; height: 8px; border-radius: 999px; background: var(--ciel-carte);
+  border: 1px solid var(--ciel-carte-bord); overflow: hidden; }
+.dec-prog > i { display: block; height: 100%; width: 0; border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold), var(--accent)); transition: width .15s ease; }
+.dec-lbl { margin-top: 6px; font-size: 13px; color: var(--ciel-attenue); }
+
+.dec-report { margin-top: 22px; display: grid; gap: 8px; text-align: left; }
+.dec-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 14px; color: var(--ciel-attenue);
+  background: var(--ciel-carte); border: 1px solid var(--ciel-carte-bord);
+  border-radius: 12px; padding: 9px 14px; }
+.dec-meta b { color: var(--ciel-texte); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.dec-champ { margin-top: 22px; text-align: left; }
+.dec-champ label { display: block; font-family: var(--f-titre); font-weight: 600; font-size: 13.5px;
+  color: var(--ciel-attenue); margin-bottom: 7px; }
+.dec-champ input { width: 100%; box-sizing: border-box; background: var(--ciel-carte);
+  border: 1px solid var(--ciel-carte-bord); color: var(--ciel-texte); border-radius: 12px;
+  padding: 12px 14px; font-family: var(--f-corps); font-size: 15.5px; }
+.dec-champ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+.dec-actions { margin-top: 24px; }
+.dec-btn { font-family: var(--f-titre); font-weight: 700; font-size: 16px; border: none;
+  border-radius: 999px; padding: 14px 28px; width: 100%; cursor: pointer;
+  background: var(--gold); color: #3A2E12; box-shadow: var(--shadow);
+  transition: transform .12s ease, box-shadow .12s ease; }
+.dec-btn:hover { transform: translateY(-1px); }
+
+/* Etoiles subtiles sur la carte (self-contained : identiques Welcome/Add). */
+.dec-card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .55;
+  background-repeat: repeat; background-size: 150px 150px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='%23E9C795'%3E%3Ccircle cx='22' cy='30' r='1.2'/%3E%3Ccircle cx='96' cy='18' r='1'/%3E%3Ccircle cx='128' cy='74' r='1.4'/%3E%3Ccircle cx='54' cy='96' r='1'/%3E%3Ccircle cx='32' cy='128' r='1.2'/%3E%3Ccircle cx='118' cy='126' r='1'/%3E%3Ccircle cx='78' cy='60' r='.9'/%3E%3Cpath d='M70 40l1.2 3L74 44l-2.8 1L70 48l-1.2-3L66 44l2.8-1z' fill='%23FFFFFF'/%3E%3C/g%3E%3C/svg%3E");
+}
+.dec-in { z-index: 1; }
+
+/* Option de sauvegarde complete (ecran d'attente). */
+.dec-opt { display: inline-flex; align-items: center; gap: 10px; margin: 18px auto 0;
+  cursor: pointer; font-size: 14.5px; color: var(--ciel-texte); }
+.dec-opt input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.dec-opt-aide { margin: 8px auto 0; max-width: 40ch; font-size: 12.5px; color: var(--ciel-attenue); }
+.dec-sauv-titre { color: var(--ciel-texte); font-weight: 600; }
+
+/* Banniere d'erreur de lecture (la veille reessaie en arriere-plan). */
+.dec-err { margin: 16px auto 0; max-width: 46ch; font-size: 13.5px; line-height: 1.45;
+  color: #d98c8c; background: rgba(200, 80, 80, .10);
+  border: 1px solid rgba(200, 80, 80, .35); border-radius: 12px; padding: 10px 14px; }

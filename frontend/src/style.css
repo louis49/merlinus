@@ -1,0 +1,170 @@
+/* ============ Polices embarquees (offline, licence OFL) ============ */
+@font-face { font-family: 'Quicksand'; font-style: normal; font-weight: 500 700;
+  font-display: swap; src: url('assets/fonts/quicksand.woff2') format('woff2'); }
+@font-face { font-family: 'Nunito'; font-style: normal; font-weight: 400 800;
+  font-display: swap; src: url('assets/fonts/nunito.woff2') format('woff2'); }
+
+/* ============ Tokens (palette pastel lavande, clair par defaut) ============ */
+:root {
+  --fond: #ECE7F8; --panneau: #FAF7FE; --carte: #FFFFFF; --surface-2: #FAF7FE;
+  --bord: #E0D6F0; --line-strong: #D3C6EA;
+  --texte: #4A4470; --attenue: #7D77A6; --ink-faint: #A9A4CB;
+  --accent: #7C6EDC; --brand-ink: #FFFFFF; --brand-soft: #EDE9FC; --gold: #E9C795;
+  --ok: #4BA377; --ok-soft: #DFF1E7; --danger: #D96578;
+  --shadow: 0 10px 30px rgba(74,68,112,.14); --shadow-soft: 0 4px 14px rgba(74,68,112,.10);
+  /* Ciel (boite d'accueil : nocturne dans les deux themes) */
+  --ciel-haut: #3A3370; --ciel-bas: #6A5CC9; --ciel-texte: #FFFFFF; --ciel-attenue: #CFC7F2;
+  --ciel-halo: rgba(233,199,149,.22); --ciel-bord: rgba(255,255,255,.14);
+  --ciel-carte: rgba(255,255,255,.08); --ciel-carte-bord: rgba(255,255,255,.16);
+  --f-titre: 'Quicksand', 'Avenir Next', 'Segoe UI', sans-serif;
+  --f-corps: 'Nunito', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  /* Fond etoile de la scene (motif repete) */
+  --scene-etoiles: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22300%22%20height%3D%22300%22%3E%3Cdefs%3E%3Cpath%20id%3D%22s%22%20d%3D%22M0%20-5C.6%20-1.3%201.3%20-.6%205%200%201.3%20.6%20.6%201.3%200%205%20-.6%201.3%20-1.3%20.6%20-5%200%20-1.3%20-.6%20-.6%20-1.3%200%20-5Z%22%2F%3E%3C%2Fdefs%3E%3Cuse%20href%3D%22%23s%22%20transform%3D%22translate%2840%2054%29%20scale%281.3%29%22%20fill%3D%22%23E9C795%22%20opacity%3D%220.5%22%2F%3E%3Cuse%20href%3D%22%23s%22%20transform%3D%22translate%28210%2040%29%20scale%281.0%29%22%20fill%3D%22%238CA0E6%22%20opacity%3D%220.45%22%2F%3E%3Cuse%20href%3D%22%23s%22%20transform%3D%22translate%28258%20150%29%20scale%281.15%29%22%20fill%3D%22%23E9C795%22%20opacity%3D%220.5%22%2F%3E%3Cuse%20href%3D%22%23s%22%20transform%3D%22translate%28120%20210%29%20scale%280.85%29%22%20fill%3D%22%238CA0E6%22%20opacity%3D%220.45%22%2F%3E%3Cuse%20href%3D%22%23s%22%20transform%3D%22translate%28180%20120%29%20scale%280.95%29%22%20fill%3D%22%23E9C795%22%20opacity%3D%220.5%22%2F%3E%3Ccircle%20cx%3D%2290%22%20cy%3D%22150%22%20r%3D%221%22%20fill%3D%22%23E9C795%22%20opacity%3D%220.4%22%2F%3E%3Ccircle%20cx%3D%22250%22%20cy%3D%22250%22%20r%3D%221.1%22%20fill%3D%22%23E9C795%22%20opacity%3D%220.4%22%2F%3E%3Ccircle%20cx%3D%22150%22%20cy%3D%2260%22%20r%3D%221%22%20fill%3D%22%23E9C795%22%20opacity%3D%220.4%22%2F%3E%3C%2Fsvg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fond: #201C39; --panneau: #2B2650; --carte: #322D57; --surface-2: #393363;
+    --bord: #453E73; --line-strong: #544C86;
+    --texte: #F2EEFB; --attenue: #BCB6DD; --ink-faint: #918CB9;
+    --accent: #ABA0F0; --brand-ink: #201C39; --brand-soft: #433C77; --gold: #E9C795;
+    --ok: #7CCFA2; --danger: #F49A9A;
+    --shadow: 0 10px 30px rgba(12,9,30,.45); --shadow-soft: 0 4px 14px rgba(12,9,30,.35);
+    --ciel-haut: #1B1734; --ciel-bas: #39306B; --ciel-attenue: #BCB6DD;
+    --ciel-halo: rgba(233,199,149,.16); --ciel-bord: rgba(255,255,255,.10);
+  }
+}
+:root[data-theme="dark"] {
+  --fond: #201C39; --panneau: #2B2650; --carte: #322D57; --surface-2: #393363;
+  --bord: #453E73; --line-strong: #544C86;
+  --texte: #F2EEFB; --attenue: #BCB6DD; --ink-faint: #918CB9;
+  --accent: #ABA0F0; --brand-ink: #201C39; --brand-soft: #433C77; --gold: #E9C795;
+  --ok: #7CCFA2; --danger: #F49A9A;
+  --shadow: 0 10px 30px rgba(12,9,30,.45); --shadow-soft: 0 4px 14px rgba(12,9,30,.35);
+  --ciel-haut: #1B1734; --ciel-bas: #39306B; --ciel-attenue: #BCB6DD;
+  --ciel-halo: rgba(233,199,149,.16); --ciel-bord: rgba(255,255,255,.10);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; } /* sinon display:flex/grid l'emporte sur l'attribut */
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--fond); color: var(--texte);
+  font-family: var(--f-corps); font-size: 15px; line-height: 1.5;
+}
+h1, h2, h3, .marque { font-family: var(--f-titre); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ============ Scene : plein cadre, fond etoile, boite centree ============ */
+.scene {
+  min-height: 100vh; display: grid; place-items: center; padding: 32px;
+  background-color: var(--fond); background-image: var(--scene-etoiles);
+  background-repeat: repeat; background-size: 300px 300px;
+}
+
+/* ============ Boite d'accueil (ciel nocturne) ============ */
+.boite {
+  position: relative; width: min(560px, 100%); overflow: hidden;
+  border-radius: 28px; border: 1px solid var(--ciel-bord); box-shadow: var(--shadow);
+  background: linear-gradient(180deg, var(--ciel-haut) 0%, var(--ciel-bas) 100%);
+  color: var(--ciel-texte); text-align: center; padding: 48px 40px 40px;
+}
+.boite::before { content: ""; position: absolute; left: 50%; top: 60px; width: 300px; height: 300px;
+  transform: translateX(-50%); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, var(--ciel-halo) 0%, rgba(0,0,0,0) 65%); }
+
+.etoiles { position: absolute; inset: 0; pointer-events: none; }
+.etoiles span { position: absolute; display: block; width: 4px; height: 4px; border-radius: 50%;
+  background: var(--gold); opacity: .75; }
+.etoiles span.lav { background: #CFC7F2; }
+.etoiles span.pt { width: 2px; height: 2px; opacity: .5; }
+.etoiles .cr { width: 10px; height: 10px; border-radius: 0; background: none; opacity: .9; }
+.etoiles .cr::before, .etoiles .cr::after { content: ""; position: absolute; left: 50%; top: 50%;
+  background: var(--gold); border-radius: 2px; }
+.etoiles .cr::before { width: 10px; height: 2px; transform: translate(-50%,-50%); }
+.etoiles .cr::after { width: 2px; height: 10px; transform: translate(-50%,-50%); }
+@media (prefers-reduced-motion: no-preference) {
+  .etoiles .tw { animation: scintille 3.2s ease-in-out infinite; }
+  @keyframes scintille { 0%,100% { opacity: .3; } 50% { opacity: .9; } }
+}
+
+.contenu { position: relative; }
+.icone { width: 96px; height: 96px; margin: 0 auto 14px; display: block;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,.25)); }
+.marque { font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  font-size: 14px; color: var(--gold); margin-bottom: 10px; }
+.boite h1 { font-size: clamp(24px, 4vw, 32px); font-weight: 700; line-height: 1.2; margin: 0 auto; max-width: 22ch; }
+.accroche { margin: 16px auto 0; max-width: 44ch; font-size: 15.5px; color: var(--ciel-attenue); }
+.accroche span { display: block; }
+.accroche span + span { margin-top: 8px; }
+.accroche strong { color: var(--ciel-texte); font-weight: 700; }
+
+/* Etat de la veille */
+.etat { display: inline-flex; align-items: center; gap: 10px; margin-top: 26px;
+  background: var(--ciel-carte); border: 1px solid var(--ciel-carte-bord);
+  border-radius: 999px; padding: 10px 18px; font-size: 14.5px; color: var(--ciel-texte); }
+.pastille { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--gold); }
+.pastille.attente { animation: pulse 1.4s ease-in-out infinite; }
+.pastille.active { background: #8CC7A6; }
+.pastille.erreur { background: var(--danger); }
+@keyframes pulse { 0%,100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+.etat.err { border-color: rgba(233,120,120,.5); }
+
+/* Barre de progression (téléchargement des illustrations) */
+.prog-welcome { margin-top: 14px; height: 8px; border-radius: 999px; background: var(--ciel-carte);
+  border: 1px solid var(--ciel-carte-bord); overflow: hidden; }
+.prog-welcome > i { display: block; height: 100%; width: 0; border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold), var(--accent)); transition: width .15s ease; }
+
+/* Compte rendu */
+.rapport { margin-top: 24px; display: grid; gap: 14px; }
+.rapport .phrase { margin: 0; font-size: 17px; color: var(--ciel-texte); }
+.rapport .phrase b { color: var(--gold); font-weight: 700; }
+.rapport .infos { display: grid; gap: 8px; }
+.rapport .meta { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 14px; color: var(--ciel-attenue); text-align: left;
+  background: var(--ciel-carte); border: 1px solid var(--ciel-carte-bord);
+  border-radius: 12px; padding: 9px 14px; }
+.rapport .meta b { color: var(--ciel-texte); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Champ "nom de la boîte" (état de fin de l'accueil) */
+.champ-nom { margin-top: 22px; text-align: left; }
+.champ-nom label { display: block; font-family: var(--f-titre); font-weight: 600; font-size: 13.5px;
+  color: var(--ciel-attenue); margin-bottom: 7px; }
+.champ-nom input { width: 100%; background: var(--ciel-carte); border: 1px solid var(--ciel-carte-bord);
+  color: var(--ciel-texte); border-radius: 12px; padding: 12px 14px; font-family: var(--f-corps); font-size: 15.5px; }
+.champ-nom input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+/* Bouton */
+.btn-primaire { margin-top: 28px; font-family: var(--f-titre); font-weight: 700; font-size: 16px;
+  border: none; border-radius: 999px; padding: 14px 28px; width: 100%; cursor: pointer;
+  background: var(--gold); color: #3A2E12; box-shadow: var(--shadow-soft);
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease; }
+.btn-primaire:hover:not([disabled]) { transform: translateY(-1px); box-shadow: var(--shadow); }
+.btn-primaire[disabled] { opacity: .5; cursor: default; }
+
+/* ============ IHM reelle (placeholder pour l'instant) ============ */
+.ihm { min-height: 100vh; display: grid; place-items: center; background: var(--fond);
+  background-image: var(--scene-etoiles); background-size: 300px 300px; padding: 32px; }
+.ihm .carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 24px;
+  box-shadow: var(--shadow); padding: 40px; text-align: center; max-width: 520px; }
+.ihm h1 { font-size: 26px; margin: 0 0 8px; color: var(--texte); }
+.ihm p { color: var(--attenue); margin: 6px 0 0; }
+.ihm .badge { display: inline-block; margin-bottom: 16px; font-family: var(--f-titre); font-weight: 700;
+  font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--accent);
+  background: var(--brand-soft); border-radius: 999px; padding: 6px 14px; }
+
+/* Composant de decouverte partage (accueil + modal d'ajout) */
+.dec-lbl { margin-top: 6px; font-size: 13px; color: var(--ciel-attenue); }
+.dec-lecture { margin-top: 22px; }
+.dec-lecture .etat { margin-top: 0; }
+/* Zone de flot stable (evite que la carte saute entre phases) */
+.dec-warn { font-size: 40px; line-height: 1; }
+.dec-actions { display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.dec-actions .btn-primaire, .dec-actions .btn-ghost2 { margin-top: 20px; }
+.btn-ghost2 { background: transparent; border: 1px solid var(--ciel-carte-bord); color: var(--ciel-texte);
+  border-radius: 14px; padding: 13px 22px; font-family: var(--f-titre); font-weight: 600; font-size: 15px; cursor: pointer; }
+.btn-ghost2:hover { background: var(--ciel-carte); }
+/* Icone/marque dans le modal d'ajout (memes tailles que l'accueil) */
+.marque-sub { text-align: center; font-family: var(--f-corps); font-weight: 600; font-size: 12.5px;
+  color: var(--ciel-attenue); margin: -2px 0 8px; }

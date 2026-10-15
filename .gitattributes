@@ -1,0 +1,4 @@
+# Fins de ligne LF partout, y compris sur un clone Windows (core.autocrlf) :
+# les scripts .sh restent executables sous Git Bash / WSL. Les binaires (png,
+# icns, ico...) sont detectes par git et laisses intacts.
+* text=auto eol=lf

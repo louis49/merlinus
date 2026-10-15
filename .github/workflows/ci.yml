@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  WAILS_VERSION: v2.16.0
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # tags : Ubuntu 22.04+ fournit webkit2gtk 4.1 ; sans le tag
+          # webkit2_41, Wails (cgo) cherche webkit2gtk-4.0 et ni les tests ni le
+          # build ne compilent.
+          - name: linux-amd64
+            runner: ubuntu-22.04 # comme la release (glibc 2.35)
+            tags: -tags webkit2_41
+          # Linux ARM (Raspberry Pi, machines virtuelles sur Mac Apple Silicon).
+          - name: linux-arm64
+            runner: ubuntu-22.04-arm
+            tags: -tags webkit2_41
+          # macOS : universel (Intel + Apple Silicon) et livre en .dmg, comme
+          # la release, pour tester a chaque push ce qui sera distribue.
+          - name: macos
+            runner: macos-latest
+            platform: -platform darwin/universal
+          - name: windows-amd64
+            runner: windows-latest
+          # Windows ARM : compilation croisee depuis le runner x64 (le build
+          # Windows de Wails n'utilise pas cgo). Les tests ne sont pas rejoues :
+          # ils tournent deja sur windows-amd64, sur la meme machine.
+          - name: windows-arm64
+            runner: windows-latest
+            platform: -platform windows/arm64
+            croise: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Node avant Go : sous act, Go modifie le PATH des etapes suivantes et fait
+      # perdre le node injecte par l'image. En placant Node d'abord, son chemin
+      # entre dans GITHUB_PATH et reste disponible pour toutes les actions JS
+      # (setup-go, upload-artifact). Neutre sur un runner GitHub reel.
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: true
+
+      # Dependances systeme de la webview, Linux uniquement (webkit2gtk 4.1,
+      # d'ou le champ tags de la matrice).
+      - name: Dependances systeme (Linux)
+        if: startsWith(matrix.name, 'linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Installer le CLI Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Diagnostic Wails
+        run: wails doctor
+
+      - name: Tests Go
+        if: ${{ !matrix.croise }}
+        run: go test ${{ matrix.tags }} ./...
+
+      - name: Build
+        run: wails build -clean ${{ matrix.tags }} ${{ matrix.platform }}
+
+      # Linux : archive comme la release (binaire, lanceur .desktop, icone). Un
+      # tar garde le bit executable, que perdrait le zip automatique d'un
+      # artefact ; publie tel quel (archive: false).
+      - name: Empaqueter (Linux)
+        if: startsWith(matrix.name, 'linux')
+        run: |
+          mkdir -p paquet/merlinus
+          mv build/bin/Merlinus paquet/merlinus/merlinus
+          cp build/linux/merlinus.desktop paquet/merlinus/
+          cp build/appicon.png paquet/merlinus/merlinus.png
+          tar -C paquet -czf merlinus-${{ matrix.name }}.tar.gz merlinus
+
+      - name: Publier l'archive (Linux)
+        if: startsWith(matrix.name, 'linux')
+        uses: actions/upload-artifact@v7
+        with:
+          path: merlinus-${{ matrix.name }}.tar.gz
+          archive: false
+          if-no-files-found: error
+
+      # Windows : le .exe seul, au nom de la release, publie tel quel.
+      - name: Empaqueter (Windows)
+        if: startsWith(matrix.name, 'windows')
+        shell: bash
+        run: mv build/bin/Merlinus.exe merlinus-${{ matrix.name }}.exe
+
+      - name: Publier l'executable (Windows)
+        if: startsWith(matrix.name, 'windows')
+        uses: actions/upload-artifact@v7
+        with:
+          path: merlinus-${{ matrix.name }}.exe
+          archive: false
+          if-no-files-found: error
+
+      # Image disque (scripts/dmg.sh) publiee telle quelle (archive: false) : le
+      # telechargement est directement le .dmg, et un .app zippe perdrait le
+      # bit executable de son binaire.
+      - name: Image disque (macOS)
+        if: matrix.name == 'macos'
+        run: scripts/dmg.sh Merlinus-macos.dmg
+
+      - name: Publier l'image disque (macOS)
+        if: matrix.name == 'macos'
+        uses: actions/upload-artifact@v7
+        with:
+          path: Merlinus-macos.dmg
+          archive: false
+          if-no-files-found: error

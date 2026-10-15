@@ -1,0 +1,43 @@
+/* Editeur d'illustration reutilisable (Generer / Importer). CSS dediee du
+   composant editeur-illustration.js. Utilise les variables de theme (var(--...))
+   definies par l'hote (.ihm-root). */
+.illed-overlay{position:fixed;inset:0;z-index:60;background:rgba(10,8,24,.55);display:grid;place-items:center;padding:24px}
+.illed-overlay[hidden]{display:none}
+.illed{width:min(560px,94vw);max-height:88vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+.illed-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}
+.illed-tabs{display:flex;gap:6px}
+.illed-tabs button{border:0;background:transparent;color:var(--muted);font-family:var(--f-titre);font-weight:600;font-size:14px;padding:7px 14px;border-radius:999px;cursor:pointer}
+.illed-tabs button.on{background:var(--accent);color:#fff}
+.illed-x{border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer;width:30px;height:30px;border-radius:8px}
+.illed-x:hover{color:var(--text)}
+.illed-body{padding:16px;overflow:auto}
+.illed-top{display:flex;gap:16px;align-items:flex-start;margin-bottom:14px}
+.illed-prev{flex:0 0 auto}
+.illed-prev img{width:128px;height:128px;border-radius:14px;display:block;background:var(--surface-2);box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.illed-swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;flex:1}
+.illed-sw{width:100%;aspect-ratio:1;border-radius:9px;border:2px solid transparent;cursor:pointer;padding:0}
+.illed-sw.on{border-color:var(--text);box-shadow:0 0 0 2px var(--panel) inset}
+.illed-icons{border-top:1px solid var(--border);padding-top:6px}
+.illed-grp{font-family:var(--f-titre);font-weight:700;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:10px 0 6px}
+.illed-iconrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:8px}
+.illed-ico{aspect-ratio:1;border:1px solid var(--border);background:transparent;border-radius:10px;color:var(--text);cursor:pointer;display:grid;place-items:center;padding:8px}
+.illed-ico svg{width:100%;height:100%}
+.illed-ico:hover{border-color:var(--accent);color:var(--accent)}
+.illed-ico.on{border-color:var(--accent);background:var(--accent);color:#fff}
+.illed-import{border:1px dashed var(--border);background:transparent;color:var(--text);border-radius:12px;padding:22px;width:100%;cursor:pointer;font-family:var(--f-corps);font-size:14px}
+.illed-import:hover{border-color:var(--accent);color:var(--accent)}
+.illed-hint{color:var(--muted);font-size:12.5px;margin:8px 2px 0}
+.illed-foot{display:flex;justify-content:flex-end;gap:10px;padding:12px 14px;border-top:1px solid var(--border)}
+.illed-btn{border:0;border-radius:999px;padding:9px 18px;font-family:var(--f-titre);font-weight:600;font-size:14px;cursor:pointer}
+.illed-btn.ghost{background:transparent;color:var(--muted)}
+.illed-btn.ghost:hover{color:var(--text)}
+.illed-btn.primary{background:var(--accent);color:#fff}
+
+/* Recherche d'icone + couleur personnalisee */
+.illed-search{margin:0 0 12px}
+.illed-search input{width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:var(--f-corps);font-size:13.5px;outline:none}
+.illed-search input:focus{border-color:var(--accent)}
+.illed-search input::placeholder{color:var(--muted)}
+.illed-custom{position:relative;display:grid;place-items:center;overflow:hidden;background:conic-gradient(from 0deg,#f43f5e,#f59e0b,#eab308,#22c55e,#06b6d4,#6366f1,#d946ef,#f43f5e)}
+.illed-custom input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.illed-custom span{font-weight:800;font-size:15px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.55);pointer-events:none}

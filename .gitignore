@@ -1,0 +1,63 @@
+# Instructions projet locales - non publiees
+CLAUDE.md
+
+# Secrets - jamais commites
+.env
+.env.*
+!.env.example
+
+# Binaires tiers (APK constructeur, firmware) - ne pas redistribuer
+*.apk
+*.apks
+*.xapk
+*.bin
+*.elf
+
+# Artefacts de build
+/merlinus
+/merlinus-*
+/dist/
+/out/
+build/bin/
+
+# Wails / frontend
+node_modules/
+frontend/package.json.md5
+# frontend/dist est genere par le build (npm run build) puis embarque.
+# On garde le dossier (embed) mais pas son contenu compile.
+frontend/dist/*
+!frontend/dist/gitkeep
+
+/linkedin/
+/docs/
+
+# Artefacts de travail
+/scratchpad/
+/downloads/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Medias de test
+/assets/*.mp3
+/assets/*.jpg
+
+# Inventaires reels de boites (donnees personnelles)
+rapport-test-*.txt
+
+# Arbres de playlist reels (structure de bibliotheque personnelle)
+arbre-*.json
+save/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Logs de travail
+*.log
+/cache/
+
+# Artefacts constructeur (APK, firmware) - analyse interop, ne pas redistribuer
+/constructeur/
