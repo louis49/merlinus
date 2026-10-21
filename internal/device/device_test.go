@@ -151,3 +151,23 @@ func TestGetFileRefusStatutSeul(t *testing.T) {
 		t.Fatalf("ErrFichierRefuse statut 2 attendu, obtenu %v", err)
 	}
 }
+
+func TestFirmwareComparer(t *testing.T) {
+	ref := Firmware{Major: 2, Minor: 1, Patch: 23}
+	cas := []struct {
+		f    Firmware
+		want int
+	}{
+		{Firmware{2, 1, 23}, 0},
+		{Firmware{2, 1, 16}, -1},
+		{Firmware{2, 1, 24}, 1},
+		{Firmware{2, 0, 300}, -1}, // la mineure prime sur le correctif
+		{Firmware{3, 0, 0}, 1},
+		{Firmware{1, 9, 99}, -1},
+	}
+	for _, c := range cas {
+		if got := c.f.Comparer(ref); got != c.want {
+			t.Errorf("%s.Comparer(%s) = %d, attendu %d", c.f, ref, got, c.want)
+		}
+	}
+}

@@ -10,6 +10,7 @@ package device
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -140,6 +141,17 @@ type Firmware struct {
 }
 
 func (f Firmware) String() string { return fmt.Sprintf("%d.%d.%d", f.Major, f.Minor, f.Patch) }
+
+// Comparer renvoie -1, 0 ou 1 selon que f est anterieure, egale ou posterieure a o.
+func (f Firmware) Comparer(o Firmware) int {
+	if c := cmp.Compare(f.Major, o.Major); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(f.Minor, o.Minor); c != 0 {
+		return c
+	}
+	return cmp.Compare(f.Patch, o.Patch)
+}
 
 // FirmwareVersion (op 5) : [major:1][minor:1][patch:2 LE].
 func (c *Client) FirmwareVersion() (Firmware, error) {

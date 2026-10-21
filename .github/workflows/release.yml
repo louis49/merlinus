@@ -83,6 +83,22 @@ jobs:
       - name: Installer le CLI Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
 
+      # Version des binaires (Info.plist macOS, proprietes et manifeste Windows)
+      # = celle du tag. Format strict x.y.z : le manifeste Windows exige des
+      # nombres (il y ajoute ".0").
+      - name: Version depuis le tag
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const v = process.env.GITHUB_REF_NAME.replace(/^v/, "");
+            if (!/^\d+\.\d+\.\d+$/.test(v)) { console.error("tag hors format vX.Y.Z : " + v); process.exit(1); }
+            const j = JSON.parse(fs.readFileSync("wails.json", "utf8"));
+            j.info.productVersion = v;
+            fs.writeFileSync("wails.json", JSON.stringify(j, null, 2) + "\n");
+            console.log("productVersion = " + v);
+          '
+
       - name: Build
         run: ${{ matrix.build }}
 

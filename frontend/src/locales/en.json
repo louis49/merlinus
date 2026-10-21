@@ -267,6 +267,8 @@
   "err_assoc_inventaire": "Box inventory unavailable: full backup impossible ({detail}).",
   "err_assoc_sauvegarde": "Backup interrupted: {detail} (reconnect the box to resume).",
   "err_assoc_enregistrement": "Could not save locally: {detail}",
+  "err_firmware_ancien": "Box firmware too old ({version}): Merlinus requires version {minimum} or later. Update the box with the publisher's mobile app, then reconnect it.",
+  "err_firmware_illisible": "Box firmware version unreadable: cannot pair ({detail}). Try again.",
   "err_lecture_generique": "Error while reading the box.",
   "err_resto_sans_sauvegarde": "No backup of this box: cannot restore.",
   "err_resto_mac": "Could not read the box identifier: {detail}",

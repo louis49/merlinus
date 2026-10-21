@@ -40,6 +40,7 @@ type fausseBoite struct {
 	surGet       func(nom string) // appele a chaque GetFile (effets de bord pendant la sequence)
 	ecoutes      []byte           // historique (get_listening.cmd) ; nil = vide (reponse "02")
 	sansMAC      bool             // op30 repond trop court
+	firmware     []byte           // reponse de op5 (defaut : 2.1.23)
 }
 
 var macTest = []byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}
@@ -50,6 +51,7 @@ func nouvelleFausseBoite(t *testing.T) *fausseBoite {
 	return &fausseBoite{
 		t: t, mac: macTest, fichiers: map[string][]byte{}, libre: 1 << 30,
 		refusUpload: map[string]bool{}, coupeGet: map[string]bool{}, tailleFausse: map[string]int{},
+		firmware: []byte{2, 1, 23, 0},
 	}
 }
 
@@ -144,6 +146,8 @@ func (b *fausseBoite) servir(conn net.Conn) bool {
 		return b.repondre(conn, op, binary.LittleEndian.AppendUint32(nil, b.libre))
 	case protocol.OpSDSize:
 		return b.repondre(conn, op, binary.LittleEndian.AppendUint32(nil, 4<<30-1))
+	case protocol.OpFirmwareVersion:
+		return b.repondre(conn, op, b.firmware)
 	case protocol.OpMAC:
 		if b.sansMAC {
 			return b.repondre(conn, op, []byte{1})

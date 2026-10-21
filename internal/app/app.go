@@ -127,13 +127,16 @@ type App struct {
 	muRegistre sync.Mutex // registre des boites (ficRegistre)
 	muSuivis   sync.Mutex // suivis-<mac>.json
 	muPerso    sync.Mutex // perso.json
+
+	sonde joignabilite // delai de detection vu par EtatBoite (sous connMu)
 }
 
 // NewApp cree l'application.
 func NewApp() *App {
 	return &App{
-		it: itunes.New(),
-		rf: radiofrance.New(),
+		it:    itunes.New(),
+		rf:    radiofrance.New(),
+		sonde: joignabilite{origine: "sonde"},
 	}
 }
 
@@ -441,13 +444,16 @@ func (a *App) EtatBoite() EtatConnexion {
 	defer a.connMu.Unlock()
 	c, err := device.Dial(device.DefaultAddr(), 1200*time.Millisecond)
 	if err != nil {
+		a.sonde.echec(err)
 		return EtatConnexion{Joignable: false}
 	}
 	defer c.Close()
 	c.SetTimeout(2 * time.Second)
 	if err := c.Ping(); err != nil {
+		a.sonde.echec(fmt.Errorf("ping : %w", err))
 		return EtatConnexion{Joignable: false}
 	}
+	a.sonde.succes()
 	e := EtatConnexion{Joignable: true}
 	if m, err := c.MAC(); err == nil {
 		e.MAC = m
@@ -1557,6 +1563,7 @@ func (a *App) emitProgresSync(p ProgresSync) {
 // veille interroge la boite jusqu'a reussir a lire et reconstruire l'arbre.
 func (a *App) veille(stop <-chan struct{}) {
 	a.emit(evtAttente)
+	j := joignabilite{origine: "veille"}
 	for {
 		select {
 		case <-stop:
@@ -1574,6 +1581,7 @@ func (a *App) veille(stop <-chan struct{}) {
 		c, err := device.Dial(device.DefaultAddr(), 1500*time.Millisecond)
 		if err != nil {
 			a.connMu.Unlock()
+			j.echec(err)
 			// Port ferme : boite absente ou machine pas sur son AP.
 			a.emit(evtAttente)
 			if attendreOuArret(stop, 2*time.Second) {
@@ -1581,6 +1589,7 @@ func (a *App) veille(stop <-chan struct{}) {
 			}
 			continue
 		}
+		j.succes()
 		pret := a.lireBoite(c)
 		c.Close()
 		a.connMu.Unlock()
@@ -1605,12 +1614,19 @@ func (a *App) veille(stop <-chan struct{}) {
 // l'arbre a ete lu et persiste (accueil termine).
 func (a *App) lireBoite(c *device.Client) bool {
 	c.SetTimeout(5 * time.Second)
+	debut := time.Now()
 	if err := c.Ping(); err != nil {
+		log.Printf("veille : ping sans reponse apres %s (%v)", time.Since(debut).Round(100*time.Millisecond), err)
 		a.emit(evtAttente)
 		return false
 	}
 
-	// MAC d'abord : si la boite est DEJA connue, on n'emet rien et on ne lit rien.
+	// Firmware en toute premiere lecture (op5) : avant la 2.1.23, la playlist
+	// n'est pas lisible par Merlinus. Le verdict n'est applique qu'apres la MAC,
+	// et seulement a une boite nouvelle (une boite deja connue est ignoree).
+	firmware, errFirmware := controlerFirmware(c)
+
+	// MAC ensuite : si la boite est DEJA connue, on n'emet rien et on ne lit rien.
 	// La veille continue simplement d'attendre une NOUVELLE boite (l'utilisateur
 	// reste sur l'ecran d'attente, sans message ni bouton).
 	// Sans MAC, pas d'association : la MAC est la cle du registre, la cle de
@@ -1628,12 +1644,16 @@ func (a *App) lireBoite(c *device.Client) bool {
 	}
 
 	a.emit(evtConnectee)
+	if errFirmware != nil {
+		log.Printf("association %s refusee : %v", pret.MAC, errFirmware)
+		a.emit(evtErreur, errFirmware.Error())
+		return false
+	}
+	pret.Firmware = firmware.String()
+	log.Printf("association %s : firmware %s accepte", pret.MAC, firmware)
 
 	// Infos de la boite : enrichissent le compte rendu, sans bloquer si l'une
 	// est indisponible (chaque lecture est independante et tolerante a l'echec).
-	if v, err := c.FirmwareVersion(); err == nil {
-		pret.Firmware = v.String()
-	}
 	if b, err := c.Battery(); err == nil {
 		pret.Batterie = &b
 	}

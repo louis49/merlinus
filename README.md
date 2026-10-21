@@ -56,18 +56,34 @@ Binaires par système sur la page des
 | Linux (x86-64) | `merlinus-linux-amd64.tar.gz` |
 | Linux (ARM64 : Raspberry Pi 64 bits...) | `merlinus-linux-arm64.tar.gz` |
 
+## Firmware requis
+
+Merlinus fonctionne avec le firmware **2.1.23** de la boîte, ou plus récent.
+Les versions antérieures (par exemple 2.1.16) ne sont pas prises en charge :
+l'association est alors refusée, et le message indique la version détectée. Il suffit de mettre la boîte à jour avec
+l'application mobile de l'éditeur, puis de la reconnecter à Merlinus.
+
 ## Brancher la boîte
 
 Merlinus parle à la boîte sur son propre réseau Wi-Fi, sans Internet ni compte :
 
 1. Appui long (environ 5 s) sur le bouton **Transfert** de la boîte : elle
    devient un point d'accès Wi-Fi.
-2. Sur l'ordinateur, rejoindre le réseau **MERLIN_...** à la main. Le système
+2. Sur l'ordinateur, rejoindre le réseau **MERLIN_...** à la main, avec le
+   mot de passe **MERLIN_APP** (voir ci-dessous s'il est refusé). Le système
    signale « Pas d'Internet » ou « connexion limitée » : c'est normal, ce
    réseau ne mène qu'à la boîte.
 3. Une fois la synchronisation faite, revenir au Wi-Fi habituel pour parcourir
    le catalogue (il faut quelques secondes avant qu'Internet soit de nouveau
    détecté).
+
+Le mot de passe du réseau **MERLIN_...** est attribué par le serveur de
+l'éditeur et inscrit sur la boîte lors des synchronisations faites avec
+l'application mobile. **MERLIN_APP** est la valeur que cette application
+propose elle-même : dans sa connexion manuelle, un appui long sur l'étape
+« Appuyez 5 secondes sur le bouton de transfert » mène au bouton « Copier le
+mot de passe ». Si ce mot de passe est refusé, la boîte en a reçu un autre :
+l'application ne l'affiche pas, et Merlinus ne peut pas le retrouver non plus.
 
 ## Applications non signées : lever la protection de l'OS
 

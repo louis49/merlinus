@@ -267,6 +267,8 @@
   "err_assoc_inventaire": "Inventaire de la boîte indisponible : sauvegarde complète impossible ({detail}).",
   "err_assoc_sauvegarde": "Sauvegarde interrompue : {detail} (reconnecte la boîte pour reprendre).",
   "err_assoc_enregistrement": "Enregistrement local impossible : {detail}",
+  "err_firmware_ancien": "Firmware de la boîte trop ancien ({version}) : Merlinus demande la version {minimum} ou plus récente. Mets la boîte à jour avec l'application mobile de l'éditeur, puis reconnecte-la.",
+  "err_firmware_illisible": "Version du firmware de la boîte illisible : association impossible ({detail}). Réessaie.",
   "err_lecture_generique": "Erreur de lecture de la boîte.",
   "err_resto_sans_sauvegarde": "Aucune sauvegarde de cette boîte : restauration impossible.",
   "err_resto_mac": "Lecture de l'identifiant de la boîte impossible : {detail}",

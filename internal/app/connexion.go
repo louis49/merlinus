@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"github.com/louis49/merlinus/internal/device"
@@ -74,4 +75,35 @@ func (a *App) connecterPourEcrire(mac string, fn func(c *device.Client) error) e
 		return err
 	}
 	return fn(c)
+}
+
+// joignabilite mesure le delai de detection de la boite (veille d'association,
+// sonde EtatBoite) : journal aux seules transitions, pas a chaque tentative.
+// La nature de l'echec distingue l'attente du Wi-Fi (delai depasse : machine
+// pas encore sur l'AP) de celle de la boite (refus : AP joint, serveur pas pret).
+type joignabilite struct {
+	origine     string
+	echecDepuis time.Time
+	tentatives  int
+	derniereErr string
+}
+
+func (j *joignabilite) echec(err error) {
+	if j.echecDepuis.IsZero() {
+		j.echecDepuis = time.Now()
+	}
+	j.tentatives++
+	if e := err.Error(); e != j.derniereErr {
+		log.Printf("%s : boite injoignable (%s)", j.origine, e)
+		j.derniereErr = e
+	}
+}
+
+func (j *joignabilite) succes() {
+	if j.echecDepuis.IsZero() {
+		return
+	}
+	log.Printf("%s : boite joignable apres %s (%d tentatives)",
+		j.origine, time.Since(j.echecDepuis).Round(100*time.Millisecond), j.tentatives)
+	*j = joignabilite{origine: j.origine}
 }
