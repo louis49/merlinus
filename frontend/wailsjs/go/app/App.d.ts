@@ -88,3 +88,7 @@ export function TaillesArbre(arg1:string):Promise<Record<string, number>>;
 export function TelechargerEpisode(arg1:string,arg2:string,arg3:string):Promise<app.ResultatMedia>;
 
 export function TelechargerImageSerie(arg1:string,arg2:string):Promise<app.ResultatMedia>;
+
+export function VerifierMiseAJour():Promise<app.MiseAJour>;
+
+export function Version():Promise<string>;

@@ -2,6 +2,7 @@ package app
 
 import (
 	"embed"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -97,8 +98,9 @@ func servirImageBoite(w http.ResponseWriter, r *http.Request) {
 
 // Run cree l'application et lance la fenetre Wails. `assets` est le systeme de
 // fichiers embarque (frontend/dist), fourni par le package main (racine) car la
-// directive //go:embed doit y resider.
-func Run(assets embed.FS, icone []byte) error {
+// directive //go:embed doit y resider. `wailsJSON` : wails.json embarque, source
+// du numero de version (voir version.go).
+func Run(assets embed.FS, icone, wailsJSON []byte) error {
 	if j := ouvrirJournal(); j != nil {
 		defer j.Close()
 	}
@@ -110,6 +112,8 @@ func Run(assets embed.FS, icone []byte) error {
 		profilWebview = filepath.Join(d, "webview")
 	}
 	a := NewApp()
+	a.version = versionDepuisConfig(wailsJSON)
+	log.Printf("Merlinus %s", a.version)
 	return wails.Run(&options.App{
 		Title:            "Merlinus",
 		Width:            1280,

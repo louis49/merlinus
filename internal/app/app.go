@@ -129,14 +129,17 @@ type App struct {
 	muPerso    sync.Mutex // perso.json
 
 	sonde joignabilite // delai de detection vu par EtatBoite (sous connMu)
+
+	version string // version de l'application (voir version.go)
 }
 
 // NewApp cree l'application.
 func NewApp() *App {
 	return &App{
-		it:    itunes.New(),
-		rf:    radiofrance.New(),
-		sonde: joignabilite{origine: "sonde"},
+		it:      itunes.New(),
+		rf:      radiofrance.New(),
+		sonde:   joignabilite{origine: "sonde"},
+		version: versionDev,
 	}
 }
 

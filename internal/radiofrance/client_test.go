@@ -296,13 +296,14 @@ func TestFeedErreurs(t *testing.T) {
 }
 
 // Recherche : decouverte du hash (page -> script app -> chunks), appel de la
-// remote function, cache du hash, et re-extraction unique sur 404.
+// remote function, cache du hash, et re-extraction unique sur 404. Le nom du
+// script app contient "_" et "-" (hash base64url, B1).
 func TestSearch(t *testing.T) {
 	c, f := nouveauClient(t)
 	var mu sync.Mutex
 	hashCourant := "abc12"
-	f.routes[hote+"/recherche?q=a&results=true"] = texte(`<script src="/_app/immutable/entry/app.Xy12Ab.js"></script>`)
-	f.routes[hote+"/_app/immutable/entry/app.Xy12Ab.js"] = texte(`import("./chunkA1.js");import("./chunkB2.js")`)
+	f.routes[hote+"/recherche?q=a&results=true"] = texte(`<script src="/_app/immutable/entry/app.Xy_12-b.js"></script>`)
+	f.routes[hote+"/_app/immutable/entry/app.Xy_12-b.js"] = texte(`import("./chunkA1.js");import("./chunkB2.js")`)
 	f.routes[hote+"/_app/immutable/chunks/chunkA1.js"] = texte(`const x = 1;`)
 	f.routes[hote+"/_app/immutable/chunks/chunkB2.js"] = func(w http.ResponseWriter, _ *http.Request) {
 		mu.Lock()

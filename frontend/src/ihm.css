@@ -630,3 +630,28 @@
 /* Retour visuel du survol d'un fichier sur la zone de depot */
 .dropzone{transition:border-color .15s,background .15s,color .15s,box-shadow .15s}
 .dropzone.drop-actif{border-style:solid;border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:0 0 0 3px var(--accent) inset}
+
+/* ---------- Bandeau de nouvelle version (bas de fenetre) ---------- */
+.maj-bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;
+  display:flex;align-items:center;gap:12px;width:max-content;max-width:calc(100vw - 32px);
+  padding:10px 10px 10px 16px;border-radius:16px;
+  background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow-lg);
+  font-family:"Nunito";font-size:14px;color:var(--text);
+  animation:maj-entree .35s ease-out}
+.maj-bar[hidden]{display:none}
+.maj-ico{display:grid;place-items:center;width:32px;height:32px;flex:none;border-radius:50%;
+  background:var(--accent-soft);color:var(--accent)}
+.maj-ico .ic{width:18px;height:18px}
+.maj-txt b{font-weight:800;color:var(--accent)}
+.maj-voir{display:inline-flex;align-items:center;gap:7px;flex:none;padding:8px 14px;border:0;border-radius:12px;
+  background:var(--accent);color:var(--on-accent);font-family:"Quicksand";font-weight:700;font-size:14px;cursor:pointer}
+.maj-voir .ic{width:16px;height:16px}
+.maj-voir:hover{filter:brightness(1.06)}
+.maj-fermer{display:grid;place-items:center;width:30px;height:30px;flex:none;border:0;border-radius:10px;
+  background:transparent;color:var(--muted);cursor:pointer}
+.maj-fermer:hover{background:var(--accent-soft);color:var(--text)}
+.maj-fermer .ic{width:16px;height:16px}
+.maj-voir:focus-visible,.maj-fermer:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ihm-root.avec-maj main{padding-bottom:84px}
+@keyframes maj-entree{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (prefers-reduced-motion:reduce){.maj-bar{animation:none}}

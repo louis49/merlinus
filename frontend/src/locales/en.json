@@ -301,5 +301,8 @@
   "prog_verification": "Checking",
   "prog_boite_restauree": "Box restored",
   "err_perso_suppression": "Could not delete the story: {detail}. Try again in a moment.",
-  "err_resto_archivage": "Restore done, but archiving the backup failed: {detail}. Restart the restore to finish."
+  "err_resto_archivage": "Restore done, but archiving the backup failed: {detail}. Restart the restore to finish.",
+  "ihm_maj_texte": "Merlinus {derniere} is available. You are using version {courante}.",
+  "ihm_maj_voir": "Download",
+  "ihm_maj_masquer": "Hide until the next version"
 }

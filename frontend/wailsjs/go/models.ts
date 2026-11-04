@@ -215,6 +215,26 @@ export namespace app {
 	        this.referencee = source["referencee"];
 	    }
 	}
+	export class MiseAJour {
+	    courante: string;
+	    derniere?: string;
+	    url?: string;
+	    disponible: boolean;
+	    verifiee: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MiseAJour(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.courante = source["courante"];
+	        this.derniere = source["derniere"];
+	        this.url = source["url"];
+	        this.disponible = source["disponible"];
+	        this.verifiee = source["verifiee"];
+	    }
+	}
 	export class RadioDispo {
 	    uuid: string;
 	    titre: string;

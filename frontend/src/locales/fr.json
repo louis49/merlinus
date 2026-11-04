@@ -301,5 +301,8 @@
   "prog_verification": "Vérification",
   "prog_boite_restauree": "Boîte restaurée",
   "err_perso_suppression": "Suppression de l'histoire impossible : {detail}. Réessaie dans un instant.",
-  "err_resto_archivage": "Restauration faite, mais l'archivage de la sauvegarde a échoué : {detail}. Relance la restauration pour terminer."
+  "err_resto_archivage": "Restauration faite, mais l'archivage de la sauvegarde a échoué : {detail}. Relance la restauration pour terminer.",
+  "ihm_maj_texte": "Merlinus {derniere} est disponible. Tu utilises la version {courante}.",
+  "ihm_maj_voir": "Télécharger",
+  "ihm_maj_masquer": "Masquer jusqu'à la prochaine version"
 }

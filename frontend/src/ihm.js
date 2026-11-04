@@ -15,8 +15,8 @@ import { fmtOctets, fmtDuree } from './format.js';
 import { creerVueArbre } from './arbreboite.js';
 import { creerDecouverte } from './decouverte.js';
 
-import { EtatBoite, CatalogueInitial, RechercheCatalogue, EpisodesSerie, Internet, ArbreBoite, ArbreTravail, EnregistrerArbreTravail, Boites, NommerBoite, DemarrerVeille, PublierEditions, DefinirWifi, DefinirHoraires, LireHoraires, LireFavoris, LireEcoutes, RegleHeure, DernieresEcoutes, EjecterBoite, EtatSauvegarde, RestaurerBoite, RetirerBoite, SupprimerBoite, TelechargerEpisode, TelechargerImageSerie, EtatsBoite, EditionsEnAttente, EstimationStockage, LireStockage, TaillesArbre, EnregistrerSuivi, NouveautesAccueil, ImporterHistoirePerso, ListerHistoiresPerso, SupprimerHistoirePerso, DefinirIllustrationPerso, RenommerHistoirePerso } from '../wailsjs/go/app/App';
-import { EventsOn } from '../wailsjs/runtime/runtime';
+import { EtatBoite, CatalogueInitial, RechercheCatalogue, EpisodesSerie, Internet, ArbreBoite, ArbreTravail, EnregistrerArbreTravail, Boites, NommerBoite, DemarrerVeille, PublierEditions, DefinirWifi, DefinirHoraires, LireHoraires, LireFavoris, LireEcoutes, RegleHeure, DernieresEcoutes, EjecterBoite, EtatSauvegarde, RestaurerBoite, RetirerBoite, SupprimerBoite, TelechargerEpisode, TelechargerImageSerie, EtatsBoite, EditionsEnAttente, EstimationStockage, LireStockage, TaillesArbre, EnregistrerSuivi, NouveautesAccueil, ImporterHistoirePerso, ListerHistoiresPerso, SupprimerHistoirePerso, DefinirIllustrationPerso, RenommerHistoirePerso, VerifierMiseAJour } from '../wailsjs/go/app/App';
+import { EventsOn, BrowserOpenURL } from '../wailsjs/runtime/runtime';
 import { creerListeVirtuelle } from './vliste.js';
 import { creerLecteur, fmtTemps } from './lecteur.js';
 import { ouvrirEditeurIllustration } from './editeur-illustration.js';
@@ -59,6 +59,35 @@ function grad(a, b) { return 'linear-gradient(140deg,' + a + ',' + b + ')'; }
 const GRADS = PAL.slice(0, 4).map(([a, b]) => grad(a, b)); // 4 premieres paires de la palette commune
 
 function srcLabel(s) { return s === 'itunes' ? 'iTunes' : 'Radio France'; } // marques : non traduites
+
+// Bandeau de nouvelle version (bas de fenetre). Verification GitHub au
+// montage, puis toutes les 30 min tant qu'aucune reponse n'est obtenue (hors
+// ligne, Wi-Fi de la boite). "Masquer" vaut pour cette version seulement : le
+// bandeau revient a la suivante.
+const CLE_MAJ_MASQUEE = 'merlinus.majMasquee';
+function surveillerMiseAJour(q) {
+  const barre = q('#majBar');
+  let essai = null;
+  async function verifier() {
+    let r;
+    try { r = await VerifierMiseAJour(); } catch (_) { return; }
+    if (!r.verifiee) { essai = essai || setInterval(verifier, 30 * 60 * 1000); return; }
+    if (essai) { clearInterval(essai); essai = null; }
+    let masquee = '';
+    try { masquee = localStorage.getItem(CLE_MAJ_MASQUEE) || ''; } catch (_) { /* indispo */ }
+    if (!r.disponible || masquee === r.derniere) return;
+    q('#majTxt').innerHTML = t('ihm_maj_texte', { derniere: '<b>' + esc(r.derniere) + '</b>', courante: esc(r.courante) });
+    q('#majVoir').onclick = () => BrowserOpenURL(r.url);
+    q('#majFermer').onclick = () => {
+      try { localStorage.setItem(CLE_MAJ_MASQUEE, r.derniere); } catch (_) { /* masque pour la session */ }
+      barre.hidden = true;
+      barre.closest('.ihm-root').classList.remove('avec-maj');
+    };
+    barre.hidden = false;
+    barre.closest('.ihm-root').classList.add('avec-maj');
+  }
+  verifier();
+}
 
 // Squelette HTML de l'IHM (chrome via i18n ; données de démo littérales).
 function shell() {
@@ -159,6 +188,12 @@ function shell() {
         </div>
       </section>
     </main>
+    <div class="maj-bar" id="majBar" role="status" hidden>
+      <span class="maj-ico">${icone('sparkles')}</span>
+      <span class="maj-txt" id="majTxt"></span>
+      <button class="maj-voir" id="majVoir">${icone('download')}${t('ihm_maj_voir')}</button>
+      <button class="maj-fermer" id="majFermer" aria-label="${t('ihm_maj_masquer')}" title="${t('ihm_maj_masquer')}">${icone('x')}</button>
+    </div>
     <div class="modal-back" id="modal" hidden>
       <div class="onb" role="dialog" aria-modal="true"><div class="inner" id="onbInner"></div></div>
     </div>
@@ -230,6 +265,7 @@ export async function monterIHM(app) {
 
   app.innerHTML = shell();
   const q = (sel) => app.querySelector(sel);
+  surveillerMiseAJour(q);
 
   const boxCtl = q('#boxControl');
   function box() { return boites[active]; }

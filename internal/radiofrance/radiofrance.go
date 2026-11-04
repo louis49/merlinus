@@ -40,6 +40,10 @@ const rfBase = "https://www.radiofrance.fr"
 
 var reHashRecherche = regexp.MustCompile(`"([a-z0-9]{5,10})/getSearchItems"`)
 
+// reScriptApp : script d'entree du build SvelteKit. Le suffixe est un hash
+// base64url, qui peut contenir "_" et "-" (ex. app.CS_G1wnW.js, B1).
+var reScriptApp = regexp.MustCompile(`/_app/immutable/entry/app\.[A-Za-z0-9_-]+\.js`)
+
 var (
 	reFeed = regexp.MustCompile(`https?://radiofrance-podcast\.net/[a-z0-9]+/(?:podcast_[0-9a-f-]+|rss_\d+)\.xml`)
 	reHref = regexp.MustCompile(`^/[a-z]+/podcasts/[a-z0-9-]+$`)
@@ -236,7 +240,7 @@ func (c *Client) searchItemsHash() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	m := regexp.MustCompile(`/_app/immutable/entry/app\.[A-Za-z0-9]+\.js`).FindString(html)
+	m := reScriptApp.FindString(html)
 	if m == "" {
 		return "", fmt.Errorf("script app introuvable")
 	}

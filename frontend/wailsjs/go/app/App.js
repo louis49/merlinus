@@ -169,3 +169,11 @@ export function TelechargerEpisode(arg1, arg2, arg3) {
 export function TelechargerImageSerie(arg1, arg2) {
   return window['go']['app']['App']['TelechargerImageSerie'](arg1, arg2);
 }
+
+export function VerifierMiseAJour() {
+  return window['go']['app']['App']['VerifierMiseAJour']();
+}
+
+export function Version() {
+  return window['go']['app']['App']['Version']();
+}

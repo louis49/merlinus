@@ -19,8 +19,14 @@ var assets embed.FS
 //go:embed build/appicon.png
 var icone []byte
 
+// wailsJSON : configuration Wails, dont info.productVersion (ecrit par le
+// workflow de release depuis le tag) donne la version de l'application.
+//
+//go:embed wails.json
+var wailsJSON []byte
+
 func main() {
-	if err := app.Run(assets, icone); err != nil {
+	if err := app.Run(assets, icone, wailsJSON); err != nil {
 		log.Printf("demarrage impossible : %v", err) // aussi dans merlinus.log (voir app.ouvrirJournal)
 		println("Error:", err.Error())
 	}
