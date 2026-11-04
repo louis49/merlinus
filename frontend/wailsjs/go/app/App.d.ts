@@ -71,6 +71,8 @@ export function RadiosDisponibles(arg1:string):Promise<app.RadiosResult>;
 
 export function RechercheCatalogue(arg1:string,arg2:string):Promise<Array<itunes.Podcast>>;
 
+export function RegleHeure(arg1:string):Promise<boolean>;
+
 export function RenommerHistoirePerso(arg1:string,arg2:string):Promise<void>;
 
 export function RestaurerBoite(arg1:string):Promise<void>;

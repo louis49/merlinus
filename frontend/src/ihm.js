@@ -15,7 +15,7 @@ import { fmtOctets, fmtDuree } from './format.js';
 import { creerVueArbre } from './arbreboite.js';
 import { creerDecouverte } from './decouverte.js';
 
-import { EtatBoite, CatalogueInitial, RechercheCatalogue, EpisodesSerie, Internet, ArbreBoite, ArbreTravail, EnregistrerArbreTravail, Boites, NommerBoite, DemarrerVeille, PublierEditions, DefinirWifi, DefinirHoraires, LireHoraires, LireFavoris, LireEcoutes, DernieresEcoutes, EjecterBoite, EtatSauvegarde, RestaurerBoite, RetirerBoite, SupprimerBoite, TelechargerEpisode, TelechargerImageSerie, EtatsBoite, EditionsEnAttente, EstimationStockage, LireStockage, TaillesArbre, EnregistrerSuivi, NouveautesAccueil, ImporterHistoirePerso, ListerHistoiresPerso, SupprimerHistoirePerso, DefinirIllustrationPerso, RenommerHistoirePerso } from '../wailsjs/go/app/App';
+import { EtatBoite, CatalogueInitial, RechercheCatalogue, EpisodesSerie, Internet, ArbreBoite, ArbreTravail, EnregistrerArbreTravail, Boites, NommerBoite, DemarrerVeille, PublierEditions, DefinirWifi, DefinirHoraires, LireHoraires, LireFavoris, LireEcoutes, RegleHeure, DernieresEcoutes, EjecterBoite, EtatSauvegarde, RestaurerBoite, RetirerBoite, SupprimerBoite, TelechargerEpisode, TelechargerImageSerie, EtatsBoite, EditionsEnAttente, EstimationStockage, LireStockage, TaillesArbre, EnregistrerSuivi, NouveautesAccueil, ImporterHistoirePerso, ListerHistoiresPerso, SupprimerHistoirePerso, DefinirIllustrationPerso, RenommerHistoirePerso } from '../wailsjs/go/app/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { creerListeVirtuelle } from './vliste.js';
 import { creerLecteur, fmtTemps } from './lecteur.js';
@@ -352,6 +352,15 @@ export async function monterIHM(app) {
         + '<span class="ec-heure">' + esc(heureBoite(e.debut)) + '</span></div></li>';
     }
     host.innerHTML = h + '</ol></div>';
+  }
+  // Remise a l'heure (horloge de l'ordinateur) une fois par connexion. Echec
+  // journalise cote Go, sans message : on ne reessaie que si la connexion etait
+  // occupee ou la boite injoignable.
+  async function reglerHeureBoite(b) {
+    for (let essai = 0; essai < 4; essai++) {
+      try { if (await RegleHeure(b.mac)) return; } catch (_) { /* reessaie */ }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
   }
   // Releve de l'historique a la connexion de la boite (connexion partagee avec
   // la sonde : quelques nouvelles tentatives si elle est occupee).
@@ -2051,7 +2060,7 @@ export async function monterIHM(app) {
       // Transition deconnecte -> connecte : lectures SEQUENTIELLES. Lancees en
       // parallele, horaires et favoris se disputaient le verrou de connexion
       // (TryLock) et le perdant abandonnait : les favoris n'etaient jamais lus.
-      if (now && !was) { (async () => { await chargerHorairesBoite(b); await chargerStockageBoite(b); await chargerFavorisBoite(b); await chargerEcoutesBoite(b); })(); }
+      if (now && !was) { (async () => { await reglerHeureBoite(b); await chargerHorairesBoite(b); await chargerStockageBoite(b); await chargerFavorisBoite(b); await chargerEcoutesBoite(b); })(); }
     });
     // Repli best-effort UNIQUEMENT si le MAC est indisponible (op30 muet) : on
     // marque l'active connectée. Si le MAC est present mais ne correspond a

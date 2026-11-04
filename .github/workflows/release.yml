@@ -11,7 +11,7 @@ on:
     tags: ["v*"]
 
 env:
-  WAILS_VERSION: v2.16.0
+  WAILS_VERSION: v2.17.0
 
 permissions:
   contents: write

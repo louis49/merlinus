@@ -41,6 +41,8 @@ type fausseBoite struct {
 	ecoutes      []byte           // historique (get_listening.cmd) ; nil = vide (reponse "02")
 	sansMAC      bool             // op30 repond trop court
 	firmware     []byte           // reponse de op5 (defaut : 2.1.23)
+	heure        int64            // horloge (op27 / set_time.cmd), heure murale
+	heureFigee   bool             // set_time.cmd acquitte mais sans effet
 }
 
 var macTest = []byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}
@@ -178,6 +180,9 @@ func (b *fausseBoite) servir(conn net.Conn) bool {
 		r := append([]byte{0, byte(len(nom))}, nom...)
 		r = binary.LittleEndian.AppendUint32(r, uint32(len(d)))
 		return b.repondre(conn, op, append(r, sum[:]...))
+	case protocol.OpGetTime:
+		b.journal = append(b.journal, "heure?")
+		return b.repondre(conn, op, binary.LittleEndian.AppendUint32(nil, uint32(b.heure)))
 	case protocol.OpDeleteFile:
 		b.journal = append(b.journal, "suppr "+string(p))
 		delete(b.fichiers, string(p))
@@ -250,10 +255,31 @@ func (b *fausseBoite) recevoirFichier(conn net.Conn, p []byte) bool {
 	if b.refusUpload[nom] || !bytes.Equal(sum[:], sha) {
 		return b.repondre(conn, protocol.OpUploadFile, []byte{8})
 	}
+	if nom == "set_time.cmd" && !b.reglerHeure(d) {
+		return b.repondre(conn, protocol.OpUploadFile, []byte{8})
+	}
 	if !strings.HasSuffix(nom, ".cmd") {
 		b.fichiers[nom] = d
 	}
 	return b.repondre(conn, protocol.OpUploadFile, []byte{1})
+}
+
+// reglerHeure simule CMD_RAM_SET_TIME : 32 octets exactement, dechiffrement
+// GCM avec la cle du MAC, u32 LE.
+func (b *fausseBoite) reglerHeure(d []byte) bool {
+	if len(d) != 32 {
+		b.t.Errorf("set_time.cmd de %d octets (attendu 32)", len(d))
+		return false
+	}
+	clair, err := device.DechiffrerPlaylist(b.mac, d)
+	if err != nil || len(clair) != 4 {
+		b.t.Errorf("set_time.cmd indechiffrable : %v", err)
+		return false
+	}
+	if !b.heureFigee {
+		b.heure = int64(binary.LittleEndian.Uint32(clair))
+	}
+	return true
 }
 
 // nettoyer simule clean_sd.cmd : tout media (uuid.ext) que la playlist en place

@@ -134,6 +134,10 @@ export function RechercheCatalogue(arg1, arg2) {
   return window['go']['app']['App']['RechercheCatalogue'](arg1, arg2);
 }
 
+export function RegleHeure(arg1) {
+  return window['go']['app']['App']['RegleHeure'](arg1);
+}
+
 export function RenommerHistoirePerso(arg1, arg2) {
   return window['go']['app']['App']['RenommerHistoirePerso'](arg1, arg2);
 }

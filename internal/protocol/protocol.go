@@ -12,9 +12,9 @@ import (
 	"fmt"
 )
 
-// Opcodes utiles au projet. Les opcodes 7 (firmware), 10 (restart) et 16/18
-// (wifi) sont volontairement absents ; 15 (delete) sert a la restauration et a
-// la suppression d'un pl.bin perime.
+// Opcodes utiles au projet. Les opcodes 7 (firmware), 8 (heure en clair, sans
+// effet en 2.1.23), 10 (restart) et 16/18 (wifi) sont volontairement absents ;
+// 15 (delete) sert a la restauration et a la suppression d'un pl.bin perime.
 const (
 	OpUploadFile      byte = 1
 	OpPing            byte = 2
@@ -29,6 +29,7 @@ const (
 	OpBattery         byte = 14
 	OpDeleteFile      byte = 15 // 0x0f : suppression d'un fichier a la racine (valide en reel)
 	OpGetWifiConfig   byte = 17 // 0x11 : configuration Wi-Fi stockee (SSID/pass)
+	OpGetTime         byte = 27 // 0x1b : heure de la boite (u32 LE, heure murale)
 	OpMAC             byte = 30 // 0x1e : adresse MAC de la SoftAP
 	OpIsFileExist     byte = 31 // 0x1f : presence d'un fichier a la racine (+ sha)
 )

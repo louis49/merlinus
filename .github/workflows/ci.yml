@@ -8,7 +8,7 @@ on:
   workflow_dispatch: {}
 
 env:
-  WAILS_VERSION: v2.16.0
+  WAILS_VERSION: v2.17.0
 
 jobs:
   build:

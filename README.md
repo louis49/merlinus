@@ -150,7 +150,7 @@ construit puis embarqué dans le binaire Go par `wails build`.
 Prérequis :
 
 - [Go](https://go.dev) (version dans [go.mod](go.mod)) et [Node.js](https://nodejs.org) 22 ;
-- le CLI Wails : `go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0` ;
+- le CLI Wails : `go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0` ;
 - Linux : `sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev` ;
 - Windows : le runtime WebView2 (présent par défaut sur Windows 10 et 11) ;
 - macOS : les outils en ligne de commande Xcode (`xcode-select --install`).
