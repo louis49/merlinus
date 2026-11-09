@@ -3,9 +3,10 @@ package device
 // Commandes d'ECRITURE du protocole local (televersement op1, suppression op15,
 // presence op31, commandes virtuelles .cmd). Chemin de publication 2.1.23
 // (docs/PROTOCOLE-2.1.23.md section 5) : pl_enc.bin televerse, adopte par
-// check_playlist.cmd (sans rien supprimer), puis clean_sd.cmd efface tout media
-// que l'arbre adopte ne reference plus. Toujours publier l'arbre COMPLET
-// (existant + ajouts), jamais un delta.
+// check_playlist.cmd (sans rien supprimer), puis l'application supprime elle-meme
+// (op15) les medias des noeuds retires. clean_sd.cmd (NettoyerCarte) n'est plus
+// appele par l'application : il efface aussi les .aac references (BUGS.md B2).
+// Toujours publier l'arbre COMPLET (existant + ajouts), jamais un delta.
 //
 // UpdatePlaylist (op6, chemin JSON herite) n'est plus utilise par l'application,
 // seulement par des outils de constructeur/.
@@ -267,7 +268,10 @@ func (c *Client) AdopterPlaylist() (statut int, err error) {
 // pas (fichiers systeme proteges par le firmware). Reponse 1 octet : 0 = fait,
 // 1 = playlist non chargee (rien supprime). Valide en reel le 2026-10-14.
 // A n'appeler qu'apres l'adoption d'un arbre COMPLET : un arbre appauvri ferait
-// effacer tout ce qu'il ne reference plus.
+// effacer tout ce qu'il ne reference plus. ATTENTION : ne garde que les
+// `<uuid>.mp3` et `<uuid>.jpg` references ; un `<uuid>.aac` reference est
+// efface (verifie en reel le 2026-11-07, BUGS.md B2). L'application ne l'appelle
+// plus (menage maison, internal/app/menageboite.go) ; reste pour les outils.
 func (c *Client) NettoyerCarte() error {
 	resp, err := c.GetFileBytes("clean_sd.cmd")
 	if err != nil {

@@ -9,8 +9,8 @@ import (
 )
 
 // Espace pendant une publication. Les medias retires de l'arbre ne sont
-// supprimes que par clean_sd.cmd, APRES l'adoption du nouvel arbre, donc apres
-// l'envoi des nouveaux fichiers. Pendant l'envoi, anciens et nouveaux
+// supprimes (menage, menageboite.go) qu'APRES l'adoption du nouvel arbre, donc
+// apres l'envoi des nouveaux fichiers. Pendant l'envoi, anciens et nouveaux
 // fichiers coexistent : l'espace libre doit couvrir les octets a envoyer, meme
 // si le bilan final (ajouts - retraits) tient dans la boite.
 

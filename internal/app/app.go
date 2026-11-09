@@ -558,24 +558,19 @@ func taillesParUUID(mac string) map[string]int64 {
 
 // fusionInventaire met a jour l'inventaire des tailles (nom de fichier -> octets)
 // apres une publication, SANS re-scan de la boite :
-//   - retire les medias (.mp3/.aac/.jpg) dont l'uuid n'est plus reference dans
-//     l'arbre publie (ils ont ete supprimes par clean_sd.cmd) ;
+//   - retire les fichiers que le menage a supprimes (absence verifiee) ;
 //   - (re)pose la taille des fichiers televerses (medias uniquement) ;
-//   - preserve tout le reste (fichiers systeme : fav.bin, pl_enc.bin, etc.).
-func fusionInventaire(inv map[string]uint32, refUUID map[string]bool, televerses map[string]int64) map[string]uint32 {
+//   - preserve tout le reste (autres medias, fichiers systeme : fav.bin,
+//     pl_enc.bin, etc.).
+func fusionInventaire(inv map[string]uint32, retires map[string]bool, televerses map[string]int64) map[string]uint32 {
 	if inv == nil {
 		inv = map[string]uint32{}
 	}
 	estMedia := func(nom string) bool {
 		return strings.HasSuffix(nom, ".mp3") || strings.HasSuffix(nom, ".aac") || strings.HasSuffix(nom, ".jpg")
 	}
-	for nom := range inv {
-		if !estMedia(nom) {
-			continue
-		}
-		if u, ok := library.UUIDDepuisNom(nom); ok && !refUUID[u] {
-			delete(inv, nom)
-		}
+	for nom := range retires {
+		delete(inv, nom)
 	}
 	for nom, t := range televerses {
 		if estMedia(nom) {
@@ -899,8 +894,8 @@ func (a *App) lirePlaylistBoite(c *device.Client) ([]playlist.Item, []byte, erro
 //   - pl.bin (enregistrements 96 o en clair), seulement si pl_enc.bin est ABSENT.
 //
 // Un pl.bin perime peut survivre a cote du pl_enc.bin publie : le lire en
-// premier ferait republier un arbre perime, puis clean_sd.cmd effacerait les
-// medias ajoutes depuis. Pour la meme raison, un pl_enc.bin present mais
+// premier ferait republier un arbre perime : les noeuds ajoutes depuis
+// disparaitraient de la boite. Pour la meme raison, un pl_enc.bin present mais
 // illisible (coupure reseau) est une erreur, pas un repli sur pl.bin.
 func choisirPlaylist(lire func(string) ([]byte, error), existe func(string) (bool, error), dechiffrer func([]byte) ([]byte, error)) ([]playlist.Item, []byte, error) {
 	enc, err := lire("pl_enc.bin")
@@ -936,9 +931,10 @@ func choisirPlaylist(lire func(string) ([]byte, error), existe func(string) (boo
 // PublierEditions relit l'arbre reel (base anti-wipe + champs authentiques),
 // applique par-dessus les editions de l'arbre de travail (renommages, ordre,
 // deplacements de series, categories creees), televerse medias et illustrations
-// nouveaux, puis publie l'arbre complet : pl_enc.bin, adoption par
-// check_playlist.cmd, menage par clean_sd.cmd (docs/PROTOCOLE-2.1.23.md
-// section 5). En l'absence d'editions, elle republie l'arbre a l'identique.
+// nouveaux (et les .aac que la boite a perdus), puis publie l'arbre complet :
+// pl_enc.bin, adoption par check_playlist.cmd, puis menage des seuls noeuds
+// retires (menageboite.go ; pas de clean_sd.cmd, BUGS.md B2). En l'absence
+// d'editions, elle republie l'arbre a l'identique.
 func (a *App) PublierEditions(mac string) error {
 	debut := time.Now()
 	log.Printf("publication %s : debut", mac)
@@ -1063,6 +1059,32 @@ func (a *App) publierEditions(c *device.Client, mac string) error {
 			return errIHM("err_contenu_incomplet", "nom", nomNoeud(u))
 		}
 	}
+	// Reparation (BUGS.md B2) : les .aac de l'arbre effaces par un clean_sd
+	// anterieur (Merlinus avant ce correctif, ou l'app officielle) sont
+	// renvoyes depuis la bibliotheque. Presence seule (op31 sans sha : rapide).
+	// Non bloquant : sans reponse fiable, on publie sans reparer.
+	aReparer := map[string]bool{}
+	for _, u := range aacAVerifier(publie, nouveaux) {
+		nom := u + ".aac"
+		present, _, err := c.IsFileExist(nom, nil)
+		if err != nil {
+			log.Printf("publication %s : verification des .aac interrompue (%v)", mac, err)
+			break
+		}
+		if present {
+			continue
+		}
+		ta, e := store.Size(library.CheminAudio(u, "aac"))
+		if e != nil {
+			log.Printf("publication %s : %s absent de la boite et de la bibliotheque (%s)", mac, nom, nomNoeud(u))
+			continue
+		}
+		envois = append(envois, envoi{nom: nom, source: library.CheminAudio(u, "aac"), taille: ta, histoire: true})
+		aReparer[nom] = true
+	}
+	if len(aReparer) > 0 {
+		log.Printf("publication %s : %d .aac absent(s) de la boite, renvoye(s)", mac, len(aReparer))
+	}
 	envois = append(envois, envoi{nom: nomPlaylist, data: plEnc, taille: int64(len(plEnc))})
 
 	var total int64
@@ -1076,6 +1098,9 @@ func (a *App) publierEditions(c *device.Client, mac string) error {
 	// Controle d'espace AVANT tout envoi (cf. espace.go) : les retraits ne
 	// liberent leur place qu'a l'adoption de l'arbre, apres les envois.
 	connus := inventaireBoite(mac)
+	for nom := range aReparer {
+		delete(connus, nom) // inventaire perime : le fichier a ete efface
+	}
 	fe := make([]fichierEnvoi, 0, len(envois))
 	for _, e := range envois {
 		fe = append(fe, fichierEnvoi{Nom: e.nom, Taille: e.taille})
@@ -1204,20 +1229,14 @@ func (a *App) publierEditions(c *device.Client, mac string) error {
 			log.Printf("publication : suppression de pl.bin perime non faite (%v)", err)
 		}
 	}
-	// Menage, comme l'app officielle : check_playlist.cmd adopte l'arbre SANS
-	// rien supprimer ; seul clean_sd.cmd efface les medias que l'arbre adopte ne
-	// reference plus (retraits, et restes des synchros precedentes). Sur pour cet
-	// arbre : il vient d'etre adopte et les garde-fous ci-dessus l'ont valide
-	// complet. Echec non bloquant : la publication est faite, la place sera
-	// liberee a la prochaine.
+	// Menage : check_playlist.cmd adopte l'arbre SANS rien supprimer. On ne
+	// lance PAS clean_sd.cmd (il efface les .aac references, BUGS.md B2) : on
+	// supprime nous-memes les medias des seuls noeuds retires (arbre relu en
+	// debut de publication moins arbre publie), APRES l'adoption, pour que la
+	// boite ne reference jamais un fichier efface. Voir menageboite.go.
 	a.emitProgres("prog_liberation", 100)
-	c.SetTimeout(120 * time.Second) // la boite parcourt toute la carte
-	if err := c.NettoyerCarte(); err != nil {
-		log.Printf("publication : menage (clean_sd.cmd) non fait (%v)", err)
-	} else {
-		log.Printf("publication %s : menage de la carte fait", mac)
-	}
 	c.SetTimeout(10 * time.Second)
+	retires := retirerMedias(c, mac, fichiersARetirer(playlist.UUIDs(reel), playlist.UUIDs(publie)))
 	a.noterStockage(c, mac) // apres le menage, avant EndSync (la boite quitte l'AP)
 	_ = c.EndSync()
 
@@ -1227,10 +1246,8 @@ func (a *App) publierEditions(c *device.Client, mac string) error {
 	}
 
 	// Mettre a jour l'inventaire des tailles pour refleter la boite apres push,
-	// sans re-scan op11/op12 : on retire les medias supprimes par le menage
-	// (uuid plus reference dans l'arbre publie) et on (re)pose la taille des
-	// fichiers televerses. Les fichiers systeme (sans uuid d'arbre) sont preserves.
-	refUUID := playlist.UUIDs(publie)
+	// sans re-scan op11/op12 : on retire les medias supprimes par le menage et on
+	// (re)pose la taille des fichiers televerses. Le reste est preserve.
 	televerses := map[string]int64{}
 	for _, e := range envois {
 		televerses[e.nom] = e.taille
@@ -1239,7 +1256,7 @@ func (a *App) publierEditions(c *device.Client, mac string) error {
 	if data, e := store.Load(ficTailles(mac)); e == nil {
 		_ = json.Unmarshal(data, &inv)
 	}
-	if data, e := json.Marshal(fusionInventaire(inv, refUUID, televerses)); e == nil {
+	if data, e := json.Marshal(fusionInventaire(inv, retires, televerses)); e == nil {
 		_ = store.Save(ficTailles(mac), data)
 	}
 
@@ -1821,7 +1838,8 @@ func (a *App) Internet() bool {
 
 // CatalogueInitial renvoie les series a afficher par defaut pour une source :
 // le classement enfants pour iTunes, le listing jeunesse pour Radio France.
-func (a *App) CatalogueInitial(source string) ([]itunes.Podcast, error) {
+func (a *App) CatalogueInitial(source string) (_ []itunes.Podcast, err error) {
+	defer func() { journaliserCatalogue("liste", source, "", err) }()
 	if source == "radiofrance" {
 		return a.rf.List()
 	}
@@ -1845,7 +1863,8 @@ func (a *App) CatalogueInitial(source string) ([]itunes.Podcast, error) {
 // cf. DT1 dans docs/BUGS.md).
 const enrichirRechercheParEpisode = true
 
-func (a *App) RechercheCatalogue(source, terme string) ([]itunes.Podcast, error) {
+func (a *App) RechercheCatalogue(source, terme string) (_ []itunes.Podcast, err error) {
+	defer func() { journaliserCatalogue("recherche", source, terme, err) }()
 	if source == "radiofrance" {
 		return a.rf.Search(terme)
 	}
@@ -1876,7 +1895,8 @@ func (a *App) RechercheCatalogue(source, terme string) ([]itunes.Podcast, error)
 }
 
 // EpisodesSerie renvoie la serie complete (description, image, episodes).
-func (a *App) EpisodesSerie(source, id string) (itunes.Feed, error) {
+func (a *App) EpisodesSerie(source, id string) (_ itunes.Feed, err error) {
+	defer func() { journaliserCatalogue("serie", source, id, err) }()
 	if source == "radiofrance" {
 		return a.rf.Feed(id)
 	}

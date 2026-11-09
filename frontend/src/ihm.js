@@ -15,7 +15,7 @@ import { fmtOctets, fmtDuree } from './format.js';
 import { creerVueArbre } from './arbreboite.js';
 import { creerDecouverte } from './decouverte.js';
 
-import { EtatBoite, CatalogueInitial, RechercheCatalogue, EpisodesSerie, Internet, ArbreBoite, ArbreTravail, EnregistrerArbreTravail, Boites, NommerBoite, DemarrerVeille, PublierEditions, DefinirWifi, DefinirHoraires, LireHoraires, LireFavoris, LireEcoutes, RegleHeure, DernieresEcoutes, EjecterBoite, EtatSauvegarde, RestaurerBoite, RetirerBoite, SupprimerBoite, TelechargerEpisode, TelechargerImageSerie, EtatsBoite, EditionsEnAttente, EstimationStockage, LireStockage, TaillesArbre, EnregistrerSuivi, NouveautesAccueil, ImporterHistoirePerso, ListerHistoiresPerso, SupprimerHistoirePerso, DefinirIllustrationPerso, RenommerHistoirePerso, VerifierMiseAJour } from '../wailsjs/go/app/App';
+import { EtatBoite, CatalogueInitial, RechercheCatalogue, EpisodesSerie, Internet, ArbreBoite, ArbreTravail, EnregistrerArbreTravail, Boites, NommerBoite, DemarrerVeille, PublierEditions, DefinirWifi, DefinirHoraires, LireHoraires, LireFavoris, LireEcoutes, RegleHeure, DernieresEcoutes, EjecterBoite, EtatSauvegarde, RestaurerBoite, RetirerBoite, SupprimerBoite, TelechargerEpisode, TelechargerImageSerie, EtatsBoite, EditionsEnAttente, EstimationStockage, LireStockage, TaillesArbre, EnregistrerSuivi, NouveautesAccueil, ImporterHistoirePerso, ListerHistoiresPerso, SupprimerHistoirePerso, DefinirIllustrationPerso, RenommerHistoirePerso, VerifierMiseAJour, JournaliserIHM } from '../wailsjs/go/app/App';
 import { EventsOn, BrowserOpenURL } from '../wailsjs/runtime/runtime';
 import { creerListeVirtuelle } from './vliste.js';
 import { creerLecteur, fmtTemps } from './lecteur.js';
@@ -87,6 +87,17 @@ function surveillerMiseAJour(q) {
     barre.closest('.ihm-root').classList.add('avec-maj');
   }
   verifier();
+}
+
+// journaliser : remonte une erreur de l'interface dans le journal de l'app
+// (merlinus.log) et la console. Un appel Go rejete arrive en chaine ; une
+// exception JavaScript porte sa pile. Ne leve jamais.
+function journaliser(contexte, e) {
+  try {
+    console.error(contexte, e);
+    const msg = (e && (e.stack || e.message)) || String(e);
+    JournaliserIHM(contexte, msg).catch(() => { /* journal indisponible */ });
+  } catch (_) { /* jamais bloquant */ }
 }
 
 // Squelette HTML de l'IHM (chrome via i18n ; données de démo littérales).
@@ -870,7 +881,8 @@ export async function monterIHM(app) {
       if (!(list && list.length) && !(await enLigne())) { afficheHorsLigne(catListWrap); return; }
       await chargerEtats();
       renderSeries(list || [], terme);
-    } catch (_) {
+    } catch (e) {
+      journaliser('catalogue ' + curSrc + (terme ? ' recherche' : ' liste'), e);
       if (!(await enLigne())) { afficheHorsLigne(catListWrap); return; }
       catListWrap.innerHTML = etatCarte('', '⚠️', t('ihm_cat_error'), '', true);
       const r = catListWrap.querySelector('[data-retry]'); if (r) r.addEventListener('click', chargerCatalogue);
@@ -1222,7 +1234,8 @@ export async function monterIHM(app) {
       const eps = (feed && feed.episodes) || [];
       if (!eps.length && !(await enLigne())) { afficheHorsLigne(catDetail); return; }
       afficherDetailSerie(p, feed, eps);
-    } catch (_) {
+    } catch (e) {
+      journaliser('serie ' + curSrc + ' ' + p.id, e);
       if (!(await enLigne())) { afficheHorsLigne(catDetail); return; }
       catDetail.innerHTML = boutonRetour() + etatCarte('', '⚠️', t('ihm_cat_error'), '', true);
       lierRetour();

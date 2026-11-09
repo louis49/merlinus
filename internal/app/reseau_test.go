@@ -224,10 +224,11 @@ func TestPublierEditions(t *testing.T) {
 		}
 	}
 
-	// Ordre : medias de H3, puis l'arbre, puis adoption, puis menage.
+	// Ordre : medias de H3, puis l'arbre, puis adoption, puis menage maison
+	// (medias du seul noeud retire, H2), sans clean_sd.cmd (BUGS.md B2).
 	j := b.operations("")
 	ordre := []string{"upload " + pH3 + ".mp3", "upload " + pH3 + ".jpg", "upload pl_enc.bin",
-		"get check_playlist.cmd", "suppr pl.bin", "get clean_sd.cmd"}
+		"get check_playlist.cmd", "suppr pl.bin", "suppr " + pH2 + ".aac", "suppr " + pH2 + ".jpg", "suppr " + pH2 + ".mp3"}
 	prec := -1
 	for _, op := range ordre {
 		i := indice(j, op)
@@ -245,13 +246,20 @@ func TestPublierEditions(t *testing.T) {
 	if playlist.CompterFavoris(b.arbreAdopte()) != 1 {
 		t.Error("categorie favoris perdue")
 	}
-	// Menage simule : H2 et l'orphelin effaces, le reste intact.
-	for _, nom := range []string{pH2 + ".mp3", pH2 + ".jpg", "a0000000-0000-4000-8000-0000000000ff.mp3"} {
+	if slices.Contains(j, "get clean_sd.cmd") {
+		t.Error("clean_sd.cmd lance : il efface les .aac references (BUGS.md B2)")
+	}
+	// Menage : les medias de H2 (retire) effaces ; RIEN d'autre, pas meme
+	// l'orphelin anterieur, que Merlinus n'a pas retire.
+	for _, nom := range []string{pH2 + ".mp3", pH2 + ".jpg"} {
 		if _, ok := b.fichiers[nom]; ok {
 			t.Errorf("%s non efface par le menage", nom)
 		}
 	}
-	for _, nom := range []string{pH1 + ".mp3", pH3 + ".mp3", pH3 + ".jpg", "fav.bin"} {
+	if n := len(b.operations("suppr ")); n != 4 { // pl.bin + 3 extensions de H2
+		t.Errorf("suppressions = %v, attendu pl.bin et les medias de H2 seulement", b.operations("suppr "))
+	}
+	for _, nom := range []string{pH1 + ".mp3", pH3 + ".mp3", pH3 + ".jpg", pCat + ".jpg", "fav.bin", "a0000000-0000-4000-8000-0000000000ff.mp3"} {
 		if _, ok := b.fichiers[nom]; !ok {
 			t.Errorf("%s absent apres publication", nom)
 		}
@@ -338,7 +346,7 @@ func TestPublierEditionsEchecs(t *testing.T) {
 			if cleErreur(err) != tc.cle {
 				t.Fatalf("erreur %q attendue, obtenu %v", tc.cle, err)
 			}
-			if slices.Contains(b.operations("get "), "get clean_sd.cmd") {
+			if slices.Contains(b.operations("suppr "), "suppr "+pH2+".mp3") {
 				t.Error("menage lance apres un echec")
 			}
 			if got := slices.Contains(b.operations("get "), "get check_playlist.cmd"); got != tc.adoption {
@@ -348,6 +356,53 @@ func TestPublierEditionsEchecs(t *testing.T) {
 				t.Error("arbre en place remplace malgre l'echec")
 			}
 		})
+	}
+}
+
+// Reparation (BUGS.md B2) : un .aac de l'arbre que la boite n'a plus (efface
+// par un clean_sd anterieur) est renvoye depuis la bibliotheque ; un .aac
+// present n'est ni renvoye ni supprime.
+func TestPublierEditionsRepareAAC(t *testing.T) {
+	mac := boiteVierge(t, "02:00:00:00:5c:04")
+	b := preparerPublication(t, mac)
+	// H1 et H2 ont un audio .aac en bibliotheque ; H1 l'a perdu sur la boite,
+	// H2 est retire par le travail (son .aac ne doit pas etre renvoye).
+	delete(b.fichiers, pH1+".mp3")
+	aacH1 := contenu("aac1", 2500)
+	for rel, d := range map[string][]byte{
+		library.CheminAudio(pH1, "aac"): aacH1,
+		library.CheminAudio(pH2, "aac"): contenu("aac2", 2500),
+	} {
+		if err := store.Save(rel, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := NewApp().publierEditions(b.connecter(), mac); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b.fichiers[pH1+".aac"], aacH1) {
+		t.Error(".aac absent de la boite non renvoye")
+	}
+	if slices.Contains(b.operations("upload "), "upload "+pH2+".aac") {
+		t.Error(".aac d'un noeud retire renvoye")
+	}
+	if i, k := indice(b.operations(""), "upload "+pH1+".aac"), indice(b.operations(""), "upload pl_enc.bin"); i < 0 || i > k {
+		t.Error(".aac repare apres l'arbre (il doit partir avant)")
+	}
+
+	// Seconde publication : le .aac est present, il n'est ni renvoye ni efface.
+	b.journal = nil
+	if err := store.Save(ficTravail(mac), []byte(`[{"uuid":"`+pCat+`","title":"Cat bis","child":[{"uuid":"`+pH1+`","title":"H1"},{"uuid":"`+pH3+`","title":"H3"}]}]`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewApp().publierEditions(b.connecter(), mac); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(b.operations("upload "), "upload "+pH1+".aac") {
+		t.Error(".aac present renvoye")
+	}
+	if !bytes.Equal(b.fichiers[pH1+".aac"], aacH1) {
+		t.Error(".aac reference efface par la publication")
 	}
 }
 

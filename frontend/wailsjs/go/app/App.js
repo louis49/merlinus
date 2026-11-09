@@ -94,6 +94,10 @@ export function Internet() {
   return window['go']['app']['App']['Internet']();
 }
 
+export function JournaliserIHM(arg1, arg2) {
+  return window['go']['app']['App']['JournaliserIHM'](arg1, arg2);
+}
+
 export function LireEcoutes(arg1) {
   return window['go']['app']['App']['LireEcoutes'](arg1);
 }

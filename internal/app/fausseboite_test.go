@@ -3,8 +3,9 @@ package app
 // Fausse boite TCP pour tester les sequences reseau de l'application
 // (sauvegarde, identite, publication, restauration) sans materiel. Elle tient
 // une carte SD en memoire et repond aux opcodes utilises par internal/device,
-// au format documente dans docs/PROTOCOLE-2.1.23.md. clean_sd.cmd est simule :
-// il efface les medias que la playlist adoptee ne reference pas.
+// au format documente dans docs/PROTOCOLE-2.1.23.md. clean_sd.cmd est simule
+// comme le firmware 2.1.23 : il ne garde que les `<uuid>.mp3` et `<uuid>.jpg`
+// references par la playlist adoptee (un `.aac` reference est efface, B2).
 
 import (
 	"bytes"
@@ -282,8 +283,9 @@ func (b *fausseBoite) reglerHeure(d []byte) bool {
 	return true
 }
 
-// nettoyer simule clean_sd.cmd : tout media (uuid.ext) que la playlist en place
-// ne reference pas est efface ; les fichiers systeme restent.
+// nettoyer simule clean_sd.cmd : tout media (uuid.ext) qui n'est pas un
+// `.mp3` ou un `.jpg` d'un uuid de la playlist en place est efface (y compris
+// un `.aac` reference) ; les fichiers systeme restent.
 func (b *fausseBoite) nettoyer() {
 	enc, ok := b.fichiers["pl_enc.bin"]
 	if !ok {
@@ -304,7 +306,8 @@ func (b *fausseBoite) nettoyer() {
 		ref[it.FileName] = true
 	}
 	for nom := range b.fichiers {
-		if reMedia.MatchString(nom) && !ref[strings.SplitN(nom, ".", 2)[0]] {
+		uuid, ext, _ := strings.Cut(nom, ".")
+		if reMedia.MatchString(nom) && (!ref[uuid] || (ext != "mp3" && ext != "jpg")) {
 			delete(b.fichiers, nom)
 		}
 	}

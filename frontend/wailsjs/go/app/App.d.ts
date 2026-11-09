@@ -51,6 +51,8 @@ export function ImporterHistoirePerso():Promise<Array<app.HistoirePerso>>;
 
 export function Internet():Promise<boolean>;
 
+export function JournaliserIHM(arg1:string,arg2:string):Promise<void>;
+
 export function LireEcoutes(arg1:string):Promise<boolean>;
 
 export function LireFavoris(arg1:string):Promise<Array<string>>;
