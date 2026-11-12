@@ -55,6 +55,8 @@
   "ihm_cat_back": "← Back to catalog",
   "ihm_cat_loading": "Loading…",
   "ihm_cat_error": "Could not load the catalog.",
+  "err_rf_refus": "Radio France is temporarily refusing our requests. Try again after {heure}.",
+  "err_rf_indisponible": "This episode is no longer available from Radio France.",
   "ihm_cat_empty": "No series found.",
   "ihm_ep_vide": "No episode of this series can be played: the source does not (or no longer) provide the audio.",
   "ihm_cat_retry": "Retry",

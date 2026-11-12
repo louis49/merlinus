@@ -32,9 +32,19 @@ type Client struct {
 	hashMu  sync.Mutex // protège le cache du hash de la remote function
 	hash    string
 	hashExp time.Time
+
+	// Reg : registre des episodes (registre.go) ; nil = sans registre (chaque
+	// lecture de serie resout tous les episodes par aod, comme avant).
+	Reg *Registre
+
+	sem    chan struct{} // limiteur : requetes en vol (limites.go)
+	disjMu sync.Mutex    // protege refus
+	refus  *ErrRefus     // dernier refus : disjoncteur ouvert jusqu'a refus.Jusqua
 }
 
-func New() *Client { return &Client{HTTP: &http.Client{Timeout: 25 * time.Second}} }
+func New() *Client {
+	return &Client{HTTP: &http.Client{Timeout: 25 * time.Second}, sem: make(chan struct{}, maxSimultanees)}
+}
 
 const rfBase = "https://www.radiofrance.fr"
 
@@ -44,21 +54,33 @@ var reHashRecherche = regexp.MustCompile(`"([a-z0-9]{5,10})/getSearchItems"`)
 // base64url, qui peut contenir "_" et "-" (ex. app.CS_G1wnW.js, B1).
 var reScriptApp = regexp.MustCompile(`/_app/immutable/entry/app\.[A-Za-z0-9_-]+\.js`)
 
-var (
-	reFeed = regexp.MustCompile(`https?://radiofrance-podcast\.net/[a-z0-9]+/(?:podcast_[0-9a-f-]+|rss_\d+)\.xml`)
-	reHref = regexp.MustCompile(`^/[a-z]+/podcasts/[a-z0-9-]+$`)
-)
+var reHref = regexp.MustCompile(`^/[a-z]+/podcasts/[a-z0-9-]+$`)
 
 // backoffsRF : delais avant chaque reessai. La longueur fixe le nombre de
 // reessais (2 ici, soit 3 tentatives au total).
 var backoffsRF = []time.Duration{200 * time.Millisecond, 500 * time.Millisecond}
 
 // requete effectue un GET avec reessais sur echec transitoire (erreur reseau
-// ou statut 5xx/429). Un 4xx est deterministe : on rend immediatement et
+// ou statut 5xx). Un refus (403, 429, sans reessai) ouvre le disjoncteur et
+// rend un *ErrRefus ; tant qu'il est ouvert, aucune requete n'est envoyee
+// (limites.go). Un autre 4xx est deterministe : on rend immediatement et
 // l'appelant decide. Le statut rendu vaut 0 en cas d'erreur reseau.
 func (c *Client) requete(u string) (body string, status int, err error) {
-	b, st, err := httpx.Get(c.HTTP, u, httpx.Options{UA: "Mozilla/5.0 Merlinus/0.1", Plafond: 8 << 20, Delais: backoffsRF})
-	return string(b), st, err
+	if err := c.suspendu(); err != nil {
+		return "", 0, err
+	}
+	c.sem <- struct{}{}
+	defer func() { <-c.sem }()
+	if err := c.suspendu(); err != nil { // refus survenu pendant l'attente
+		return "", 0, err
+	}
+	rep, err := httpx.GetComplet(c.HTTP, u, httpx.Options{
+		UA: "Mozilla/5.0 Merlinus/0.1", Plafond: 8 << 20, Delais: backoffsRF, Sans429: true,
+	})
+	if err == nil && (rep.Statut == http.StatusForbidden || rep.Statut == http.StatusTooManyRequests) {
+		return "", rep.Statut, c.disjoncter(u, rep)
+	}
+	return string(rep.Corps), rep.Statut, err
 }
 
 func (c *Client) fetch(u string) (string, error) {
@@ -164,52 +186,45 @@ func imageCarte(o map[string]any) string {
 	return ""
 }
 
-// Feed resout la serie complete (description + image + episodes). La description
-// vient du <channel> du flux RSS quand il existe ; sans flux (serie resolue via
-// __data.json), il n'y a pas de description de channel.
+// aodOuverture, aodFond : resolutions aod simultanees pour une serie ouverte
+// par l'utilisateur, et pour la verification des nouveautes en arriere-plan.
+const (
+	aodOuverture = 6
+	aodFond      = 2
+)
+
+// Feed resout la serie complete (description + image + episodes) a l'ouverture
+// par l'utilisateur.
 func (c *Client) Feed(path string) (itunes.Feed, error) {
-	page, err := c.fetch("https://www.radiofrance.fr/" + strings.Trim(path, "/"))
+	// Episodes : uniquement via la voie paginee (__data.json + registre + aod).
+	// Elle est plus complete que le flux RSS de RF, qui plafonne (~170 episodes
+	// meme quand la serie en compte davantage), et elle privilegie le mp3
+	// (evite le remux m4a). Surtout, elle seule donne la cle des episodes : PAS
+	// de repli sur le RSS, dont les uuid (itunes:guid) different de ceux de la
+	// boite et feraient proposer toute la serie en double (BUGS.md B5). Un echec
+	// rend la serie indisponible, jamais fausse.
+	eps, rss, err := c.serieEpisodes(path, aodOuverture)
 	if err != nil {
 		return itunes.Feed{}, err
 	}
-	feeds := reFeed.FindAllString(page, -1)
-
-	// Episodes : toujours via la voie paginee (__data.json + aod). Elle est plus
-	// complete que le flux RSS de RF, qui plafonne (~170 episodes meme quand la
-	// serie en compte davantage), et elle privilegie le mp3 (evite le remux m4a).
-	eps, errS := c.serieEpisodes(path)
-
-	// Choix du flux RSS (forme https podcast_<uuid>.xml de preference) : sert la
-	// description/image de la serie, et sert de repli si la pagination echoue.
-	feed := ""
-	if len(feeds) > 0 {
-		feed = feeds[0]
-		for _, f := range feeds {
-			if strings.HasPrefix(f, "https://") && strings.Contains(f, "/podcast_") {
-				feed = f
-				break
-			}
-		}
-	}
-
-	if errS != nil || len(eps) == 0 {
-		// Pagination indisponible : repli sur le flux RSS complet s'il existe.
-		if feed != "" {
-			f, err := itunes.ParseFeedComplet(c.HTTP, feed)
-			f.Description = tronquerPromo(f.Description)
-			return f, err
-		}
-		return itunes.Feed{}, errS
-	}
-
+	// Le flux RSS (champ rssFeed de la serie dans __data.json, vide si la serie
+	// n'en a pas) sert seulement la description et l'image de la serie.
 	f := itunes.Feed{Episodes: eps}
-	if feed != "" {
-		if rss, err := itunes.ParseFeedComplet(c.HTTP, feed); err == nil {
-			f.Description = tronquerPromo(rss.Description)
-			f.Image = rss.Image
+	if rss != "" {
+		if r, err := itunes.ParseFeedComplet(c.HTTP, rss); err == nil {
+			f.Description = tronquerPromo(r.Description)
+			f.Image = r.Image
 		}
 	}
 	return f, nil
+}
+
+// EpisodesArrierePlan : episodes d'une serie pour la verification des
+// nouveautes, en menageant le site (ni flux RSS, 2 resolutions aod
+// simultanees au lieu de 6).
+func (c *Client) EpisodesArrierePlan(path string) ([]itunes.Episode, error) {
+	eps, _, err := c.serieEpisodes(path, aodFond)
+	return eps, err
 }
 
 // tronquerPromo retire l'encart promotionnel que Radio France ajoute en fin de
@@ -259,6 +274,9 @@ func (c *Client) searchItemsHash() (string, error) {
 	}
 	h := c.scanHash(urls)
 	if h == "" {
+		if err := c.suspendu(); err != nil { // chunks refuses : dire pourquoi
+			return "", err
+		}
 		return "", fmt.Errorf("hash getSearchItems introuvable")
 	}
 	c.hashMu.Lock()

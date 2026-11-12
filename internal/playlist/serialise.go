@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // MaxTitreOctets : longueur maximale d'un titre pousse a la boite.
@@ -75,16 +78,67 @@ func runeEmoji(r rune) bool {
 // sur un titre vide inconnu.
 const TitreParDefaut = "Sans titre"
 
-// nettoyerTitreBoite retire les emojis d'un titre et normalise les espaces (les
-// suppressions peuvent laisser des espaces doubles ou en bord). L'arbre local
-// garde le titre complet ; ce nettoyage ne vaut que pour ce qui est pousse.
-// Jamais vide : repli sur TitreParDefaut.
+// Police de la boite (BUGS.md B9) : elle affiche un carre pour tout caractere
+// qu'elle n'a pas. Verifie a l'ecran : ’ (U+2019), … (U+2026) et l'accent
+// combinant U+0301 donnent un carre ; é, è, à precomposes, l'espace insecable
+// et le point median s'affichent. Hypothese retenue : police limitee a
+// Latin-1 (U+0000-U+00FF).
+const maxRuneBoite = 0xFF
+
+// equivalentsBoite : equivalents affichables des caracteres typographiques
+// courants hors Latin-1.
+var equivalentsBoite = map[rune]string{
+	'\u2018': "'", '\u2019': "'", '\u201A': "'", '\u201B': "'", '\u2032': "'", // apostrophes
+	'\u201C': `"`, '\u201D': `"`, '\u201E': `"`, '\u201F': `"`, '\u2033': `"`, // guillemets droits
+	'\u2039': "\u00AB", '\u203A': "\u00BB", // guillemets simples -> « »
+	'\u2026': "...",
+	'\u2010': "-", '\u2011': "-", '\u2012': "-", '\u2013': "-", '\u2014': "-", '\u2015': "-", '\u2212': "-",
+	'\u2022': "\u00B7", '\u2027': "\u00B7", // puces -> point median
+	'\u0152': "OE", '\u0153': "oe",
+	'\u20AC': "EUR",
+	// lettres sans decomposition canonique
+	'\u0141': "L", '\u0142': "l", '\u0110': "D", '\u0111': "d", '\u0131': "i",
+}
+
+// versPoliceBoite rend une rune affichable par la boite : telle quelle si elle
+// est dans la police, son equivalent typographique, sa lettre de base sans
+// accent (ł, ő...), sinon rien. Les caracteres de controle sont retires.
+func versPoliceBoite(r rune) string {
+	switch {
+	case r < 0x20 || (r >= 0x7F && r < 0xA0):
+		if unicode.IsSpace(r) {
+			return " "
+		}
+		return ""
+	case r <= maxRuneBoite:
+		return string(r)
+	case unicode.IsSpace(r):
+		return " "
+	}
+	if e, ok := equivalentsBoite[r]; ok {
+		return e
+	}
+	var b strings.Builder
+	for _, d := range norm.NFD.String(string(r)) {
+		if d <= maxRuneBoite && !unicode.Is(unicode.Mn, d) && d >= 0x20 {
+			b.WriteRune(d)
+		}
+	}
+	return b.String()
+}
+
+// nettoyerTitreBoite rend un titre affichable par la boite : accents
+// recomposes (NFC : e + accent combinant -> é), emojis retires, caracteres hors
+// police convertis (versPoliceBoite), espaces normalises (les suppressions
+// peuvent laisser des espaces doubles ou en bord). L'arbre local garde le
+// titre complet ; ce nettoyage ne vaut que pour ce qui est pousse. Jamais
+// vide : repli sur TitreParDefaut.
 func nettoyerTitreBoite(t string) string {
 	var b strings.Builder
 	b.Grow(len(t))
-	for _, r := range t {
+	for _, r := range norm.NFC.String(t) {
 		if !runeEmoji(r) {
-			b.WriteRune(r)
+			b.WriteString(versPoliceBoite(r))
 		}
 	}
 	if propre := strings.Join(strings.Fields(b.String()), " "); propre != "" {
@@ -93,13 +147,17 @@ func nettoyerTitreBoite(t string) string {
 	return TitreParDefaut
 }
 
+// ellipseBoite : marque de troncature, en points ASCII ("…" U+2026 n'est pas
+// dans la police de la boite, BUGS.md B9).
+const ellipseBoite = "..."
+
 // tronquerTitre borne un titre a 63 octets sur une frontiere de rune, avec une
-// ellipse (comme le firmware).
+// ellipse.
 func tronquerTitre(t string) string {
 	if len(t) <= MaxTitreOctets {
 		return t
 	}
-	const budget = MaxTitreOctets - len("…") // place pour l'ellipse (3 octets)
+	const budget = MaxTitreOctets - len(ellipseBoite) // place pour l'ellipse (3 octets)
 	n := 0
 	for i := range t { // i = index de debut de chaque rune
 		if i > budget {
@@ -107,7 +165,7 @@ func tronquerTitre(t string) string {
 		}
 		n = i
 	}
-	return strings.TrimRight(t[:n], " ") + "…"
+	return strings.TrimRight(t[:n], " ") + ellipseBoite
 }
 
 // copieTronquee recopie l'arbre en bornant chaque titre, sans muter l'entree.

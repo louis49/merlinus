@@ -3,6 +3,8 @@ package app
 import (
 	"log"
 	"strings"
+
+	"github.com/louis49/merlinus/internal/radiofrance"
 )
 
 // Erreurs du catalogue et de l'interface dans le journal de l'app
@@ -19,6 +21,15 @@ func journaliserCatalogue(op, source, detail string, err error) {
 		detail = " " + borner(detail, 120)
 	}
 	log.Printf("catalogue %s %s%s : %v", source, op, detail, err)
+}
+
+// erreurCatalogue traduit pour l'IHM un refus de Radio France (BUGS.md B3) ;
+// les autres erreurs passent telles quelles (message generique cote IHM).
+func erreurCatalogue(err error) error {
+	if r, ok := radiofrance.EstRefus(err); ok {
+		return errIHM("err_rf_refus", "heure", r.Jusqua.Format("15:04"))
+	}
+	return err
 }
 
 // JournaliserIHM ecrit dans le journal une erreur survenue dans l'interface

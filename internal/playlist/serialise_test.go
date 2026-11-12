@@ -18,7 +18,7 @@ func TestTronquerTitreCourtInchange(t *testing.T) {
 
 func TestTronquerTitreASCII(t *testing.T) {
 	got := tronquerTitre(strings.Repeat("a", MaxTitreOctets+1))
-	attendu := strings.Repeat("a", MaxTitreOctets-len("…")) + "…"
+	attendu := strings.Repeat("a", MaxTitreOctets-len(ellipseBoite)) + ellipseBoite
 	if got != attendu {
 		t.Fatalf("tronquerTitre(64 x a) = %q (%d o), attendu %q", got, len(got), attendu)
 	}
@@ -42,16 +42,16 @@ func TestTronquerTitreMultiOctets(t *testing.T) {
 		if !utf8.ValidString(got) {
 			t.Errorf("tronquerTitre(%q) = %q : UTF-8 invalide", s, got)
 		}
-		if !strings.HasSuffix(got, "…") {
+		if !strings.HasSuffix(got, ellipseBoite) {
 			t.Errorf("tronquerTitre(%q) = %q : ellipse absente", s, got)
 		}
-		if !strings.HasPrefix(s, strings.TrimSuffix(got, "…")) {
+		if !strings.HasPrefix(s, strings.TrimSuffix(got, ellipseBoite)) {
 			t.Errorf("tronquerTitre(%q) = %q : pas un prefixe de l'entree", s, got)
 		}
 	}
 	// Cas precis : "a" + runes de 4 octets -> derniere frontiere <= 60 a l'octet 57.
 	got := tronquerTitre("a" + strings.Repeat("𝄞", 20))
-	if attendu := "a" + strings.Repeat("𝄞", 14) + "…"; got != attendu {
+	if attendu := "a" + strings.Repeat("𝄞", 14) + ellipseBoite; got != attendu {
 		t.Fatalf("frontiere de rune : %q, attendu %q", got, attendu)
 	}
 }
@@ -59,7 +59,7 @@ func TestTronquerTitreMultiOctets(t *testing.T) {
 // Les espaces finaux avant l'ellipse sont retires.
 func TestTronquerTitreEspaceFinal(t *testing.T) {
 	s := strings.Repeat("a", 59) + "  " + strings.Repeat("b", 10)
-	if got, attendu := tronquerTitre(s), strings.Repeat("a", 59)+"…"; got != attendu {
+	if got, attendu := tronquerTitre(s), strings.Repeat("a", 59)+ellipseBoite; got != attendu {
 		t.Fatalf("tronquerTitre = %q, attendu %q", got, attendu)
 	}
 }
@@ -76,6 +76,16 @@ func TestNettoyerTitreBoite(t *testing.T) {
 		{"🎵🎶", TitreParDefaut}, // B18 : jamais de titre vide vers la boite
 		{"   ", TitreParDefaut},
 		{"", TitreParDefaut},
+		// B9 : police de la boite limitee a Latin-1 (carres sinon).
+		{"Cache-cache sur les ailes d\u2019un oiseau", "Cache-cache sur les ailes d'un oiseau"},
+		{"Pierrot et Poupouche de\u0301me\u0301nagent", "Pierrot et Poupouche déménagent"},
+		{"Ce n\u2019est pas pour se camoufler\u2026", "Ce n'est pas pour se camoufler..."},
+		{"le c\u0153ur \u2013 \u201Cmauvais\u201D", `le coeur - "mauvais"`},
+		{"Le camping 1/4\u00a0\u00b7 L'installation", "Le camping 1/4 · L'installation"},
+		{"\u00ab Ma\u00f1ana \u00bb", "« Mañana »"},
+		{"\u0141\u00f3d\u017a \u0151", "Lódz o"},         // lettre de base sans accent
+		{"Fin\u202fde\u2009ligne\u0007", "Fin de ligne"}, // espaces fines, controle
+		{"\u4e2d\u6587", TitreParDefaut},                 // rien d'affichable
 	}
 	for _, c := range cas {
 		if got := nettoyerTitreBoite(c.entree); got != c.attendu {
@@ -211,7 +221,7 @@ func TestSerialiserBoiteNilVsVide(t *testing.T) {
 	}
 	var titre string
 	_ = json.Unmarshal(enfants[0]["title"], &titre)
-	if len(titre) > MaxTitreOctets || !strings.HasSuffix(titre, "…") {
+	if len(titre) > MaxTitreOctets || !strings.HasSuffix(titre, ellipseBoite) {
 		t.Fatalf("titre non borne : %q", titre)
 	}
 	if arbre[0].Children[0].Title != long {
@@ -385,5 +395,19 @@ func TestMarshalJSONParValeur(t *testing.T) {
 	var nul *Node
 	if b, _ := json.Marshal(nul); string(b) != "null" {
 		t.Errorf("pointeur nul : %s", b)
+	}
+}
+
+// Le titre signale (B9) : 79 octets ASCII, tronque avec une ellipse ASCII.
+func TestTitreBoiteTronqueASCII(t *testing.T) {
+	titre := "\"L'histoire qui fait un petit peu peur mais heureusement y a des prouts dedans\""
+	got := tronquerTitre(nettoyerTitreBoite(titre))
+	if attendu := "\"L'histoire qui fait un petit peu peur mais heureusement y a..."; got != attendu {
+		t.Errorf("titre boite = %q, attendu %q", got, attendu)
+	}
+	for _, r := range got {
+		if r > maxRuneBoite {
+			t.Errorf("rune hors police %U dans %q", r, got)
+		}
 	}
 }

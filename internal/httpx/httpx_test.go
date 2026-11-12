@@ -46,3 +46,24 @@ func TestGetReessais(t *testing.T) {
 		t.Error("URL invalide acceptee")
 	}
 }
+
+// Sans429 : un 429 est rendu sans reessai ; GetComplet rend les en-tetes.
+func TestGetSans429(t *testing.T) {
+	var n atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n.Add(1)
+		w.Header().Set("Retry-After", "30")
+		w.WriteHeader(429)
+	}))
+	defer srv.Close()
+	o := Options{Plafond: 10, Delais: []time.Duration{time.Millisecond, time.Millisecond}}
+	if _, st, _ := Get(srv.Client(), srv.URL, o); st != 429 || n.Load() != 3 {
+		t.Errorf("429 par defaut : statut %d, %d essais (attendu 3)", st, n.Load())
+	}
+	n.Store(0)
+	o.Sans429 = true
+	r, err := GetComplet(srv.Client(), srv.URL, o)
+	if err != nil || r.Statut != 429 || n.Load() != 1 || r.Entetes.Get("Retry-After") != "30" {
+		t.Errorf("Sans429 : %+v %v, %d essais", r, err, n.Load())
+	}
+}

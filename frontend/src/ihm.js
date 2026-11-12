@@ -90,14 +90,23 @@ function surveillerMiseAJour(q) {
 }
 
 // journaliser : remonte une erreur de l'interface dans le journal de l'app
-// (merlinus.log) et la console. Un appel Go rejete arrive en chaine ; une
-// exception JavaScript porte sa pile. Ne leve jamais.
+// (merlinus.log) et la console. Un appel Go rejete arrive en objet Error dont
+// la pile WebKit ne dit rien ("B@wails://...") : le message d'abord, la pile
+// ensuite (utile pour une exception JavaScript). Ne leve jamais.
 function journaliser(contexte, e) {
   try {
     console.error(contexte, e);
-    const msg = (e && (e.stack || e.message)) || String(e);
+    let msg = String((e && e.message) || e);
+    if (e && e.stack && e.stack !== msg) msg += ' | ' + e.stack;
     JournaliserIHM(contexte, msg).catch(() => { /* journal indisponible */ });
   } catch (_) { /* jamais bloquant */ }
+}
+
+// detailErreurCatalogue : explication d'une erreur du catalogue prevue par le
+// Go (ex. refus de Radio France), echappee ; vide pour les autres erreurs.
+function detailErreurCatalogue(e) {
+  const s = String((e && e.message) || e);
+  return s.includes('ihm:{') ? esc(msgErreur(e)) : '';
 }
 
 // Squelette HTML de l'IHM (chrome via i18n ; données de démo littérales).
@@ -884,7 +893,7 @@ export async function monterIHM(app) {
     } catch (e) {
       journaliser('catalogue ' + curSrc + (terme ? ' recherche' : ' liste'), e);
       if (!(await enLigne())) { afficheHorsLigne(catListWrap); return; }
-      catListWrap.innerHTML = etatCarte('', '⚠️', t('ihm_cat_error'), '', true);
+      catListWrap.innerHTML = etatCarte('', '⚠️', t('ihm_cat_error'), detailErreurCatalogue(e), true);
       const r = catListWrap.querySelector('[data-retry]'); if (r) r.addEventListener('click', chargerCatalogue);
     }
   }
@@ -1237,7 +1246,7 @@ export async function monterIHM(app) {
     } catch (e) {
       journaliser('serie ' + curSrc + ' ' + p.id, e);
       if (!(await enLigne())) { afficheHorsLigne(catDetail); return; }
-      catDetail.innerHTML = boutonRetour() + etatCarte('', '⚠️', t('ihm_cat_error'), '', true);
+      catDetail.innerHTML = boutonRetour() + etatCarte('', '⚠️', t('ihm_cat_error'), detailErreurCatalogue(e), true);
       lierRetour();
       const r = catDetail.querySelector('[data-retry]'); if (r) r.addEventListener('click', () => ouvrirSerie(p));
     }

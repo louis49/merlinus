@@ -135,9 +135,11 @@ type App struct {
 
 // NewApp cree l'application.
 func NewApp() *App {
+	rf := radiofrance.New()
+	rf.Reg = registreRF()
 	return &App{
 		it:      itunes.New(),
-		rf:      radiofrance.New(),
+		rf:      rf,
 		sonde:   joignabilite{origine: "sonde"},
 		version: versionDev,
 	}
@@ -350,6 +352,10 @@ type ResultatMedia struct {
 func (a *App) TelechargerEpisode(uuid, audioURL, imageURL string) ResultatMedia {
 	if err := uuidMediaValide(uuid); err != nil {
 		return ResultatMedia{Message: err.Error()}
+	}
+	audioURL, err := a.urlAudioFraiche(uuid, audioURL)
+	if err != nil {
+		return ResultatMedia{Message: errIHM("err_rf_indisponible").Error()}
 	}
 	if _, err := library.PreparerEpisode(uuid, audioURL, imageURL); err != nil {
 		return ResultatMedia{Message: errDetail("err_telechargement", err).Error()}
@@ -721,9 +727,14 @@ func firstNonEmpty(a, b string) string {
 }
 
 type cacheSerie struct {
+	V     int      `json:"v,omitempty"` // versionCacheSerie
 	Ts    int64    `json:"ts"`
 	Uuids []string `json:"uuids"`
 }
+
+// versionCacheSerie : 2 depuis le registre Radio France (les caches d'avant
+// portent des uuid RF non rattaches : relus une fois).
+const versionCacheSerie = 2
 
 // uuidsCatalogue renvoie les uuids des episodes d'une serie du catalogue, avec un
 // cache disque de 24 h (les acces web sont couteux, surtout RF).
@@ -731,14 +742,17 @@ func (a *App) uuidsCatalogue(src, id string) ([]string, error) {
 	f := "cache/series/" + itunes.UUIDDeterministe("cache:"+src+":"+id) + ".json"
 	if d, e := store.Load(f); e == nil {
 		var c cacheSerie
-		if json.Unmarshal(d, &c) == nil && time.Now().Unix()-c.Ts < 24*3600 {
+		if json.Unmarshal(d, &c) == nil && c.V == versionCacheSerie && time.Now().Unix()-c.Ts < 24*3600 {
 			return c.Uuids, nil
 		}
 	}
 	var feed itunes.Feed
 	var err error
 	if src == "radiofrance" {
-		feed, err = a.rf.Feed(id)
+		// Chemin leger : pages + registre, sans flux RSS.
+		if feed.Episodes, err = a.rf.EpisodesArrierePlan(id); err == nil {
+			feed.Episodes = a.rattacherRF(id, feed.Episodes)
+		}
 	} else {
 		feed, err = a.it.Feed(id)
 	}
@@ -751,7 +765,7 @@ func (a *App) uuidsCatalogue(src, id string) ([]string, error) {
 			uuids = append(uuids, e.UUID)
 		}
 	}
-	if d, e := json.Marshal(cacheSerie{Ts: time.Now().Unix(), Uuids: uuids}); e == nil {
+	if d, e := json.Marshal(cacheSerie{V: versionCacheSerie, Ts: time.Now().Unix(), Uuids: uuids}); e == nil {
 		_ = store.Save(f, d)
 	}
 	return uuids, nil
@@ -838,15 +852,24 @@ func (a *App) NouveautesAccueil(mac string) []SerieNouveaute {
 		ok bool
 	}
 	ch := make(chan res, len(suivis))
-	sem := make(chan struct{}, 4) // parallelisme borne (les Feed RF sont lents)
+	// Parallelisme borne. Radio France : une serie a la fois (une serie coute
+	// une requete aod par episode ; une rafale au demarrage a valu un refus 403
+	// du site, BUGS.md B3).
+	sem := make(chan struct{}, 4)
+	semRF := make(chan struct{}, 1)
 	n := 0
 	for uuid, s := range suivis {
 		n++
 		go func(uuid string, s SuiviSerie) {
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			sm := sem
+			if s.Src == "radiofrance" {
+				sm = semRF
+			}
+			sm <- struct{}{}
+			defer func() { <-sm }()
 			uuids, err := a.uuidsCatalogue(s.Src, s.SrcId)
 			if err != nil {
+				journaliserCatalogue("nouveautes", s.Src, s.SrcId, err)
 				ch <- res{ok: false}
 				return
 			}
@@ -1839,7 +1862,7 @@ func (a *App) Internet() bool {
 // CatalogueInitial renvoie les series a afficher par defaut pour une source :
 // le classement enfants pour iTunes, le listing jeunesse pour Radio France.
 func (a *App) CatalogueInitial(source string) (_ []itunes.Podcast, err error) {
-	defer func() { journaliserCatalogue("liste", source, "", err) }()
+	defer func() { journaliserCatalogue("liste", source, "", err); err = erreurCatalogue(err) }()
 	if source == "radiofrance" {
 		return a.rf.List()
 	}
@@ -1864,7 +1887,7 @@ func (a *App) CatalogueInitial(source string) (_ []itunes.Podcast, err error) {
 const enrichirRechercheParEpisode = true
 
 func (a *App) RechercheCatalogue(source, terme string) (_ []itunes.Podcast, err error) {
-	defer func() { journaliserCatalogue("recherche", source, terme, err) }()
+	defer func() { journaliserCatalogue("recherche", source, terme, err); err = erreurCatalogue(err) }()
 	if source == "radiofrance" {
 		return a.rf.Search(terme)
 	}
@@ -1896,9 +1919,13 @@ func (a *App) RechercheCatalogue(source, terme string) (_ []itunes.Podcast, err 
 
 // EpisodesSerie renvoie la serie complete (description, image, episodes).
 func (a *App) EpisodesSerie(source, id string) (_ itunes.Feed, err error) {
-	defer func() { journaliserCatalogue("serie", source, id, err) }()
+	defer func() { journaliserCatalogue("serie", source, id, err); err = erreurCatalogue(err) }()
 	if source == "radiofrance" {
-		return a.rf.Feed(id)
+		f, err := a.rf.Feed(id)
+		if err == nil {
+			f.Episodes = a.rattacherRF(id, f.Episodes)
+		}
+		return f, err
 	}
 	return a.it.Feed(id)
 }

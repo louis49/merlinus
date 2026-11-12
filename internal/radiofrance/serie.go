@@ -2,23 +2,31 @@ package radiofrance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
+	"log"
+	"net/http"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/louis49/merlinus/internal/itunes"
 )
 
 var reUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-// cleEpisodeRF derive la clef stable d'un episode RF du NOM DE FICHIER de son
+// cleEpisodeRF derive la clef d'un episode RF NOUVEAU du NOM DE FICHIER de son
 // archive audio (sans dossier ni extension) : c'est le fichier reellement stocke
 // sur le CDN (ex. ITEMA_22989809-2022M44415E0002-21, ou _RSCE-21-<hash>). Il est
-// a la fois stable (identifiant d'archive, pas l'UUID interne volatile du
-// __data.json) et UNIQUE par episode.
+// UNIQUE par episode, mais PAS stable : RF le change quand il republie le media
+// (BUGS.md B6). L'uuid ainsi calcule est donc fige a la premiere vue dans le
+// registre (registre.go), indexe par l'id d'expression de __data.json, lui
+// stable. Le calcul n'est pas change pour ne modifier aucun uuid deja publie.
 //
 // Piege corrige : le seul numero ITEMA ne suffit PAS. Plusieurs episodes
 // partagent un meme ITEMA_<n>, distingues par le suffixe ...E000N -> extraire le
@@ -50,27 +58,42 @@ type epSerie struct {
 	dur                          int
 }
 
-// serieEpisodes traite les podcasts "serie-" de Radio France (sans flux RSS).
-// Les episodes sont pagines dans le __data.json de la page (SvelteKit) : le
-// concept expose expressionCount (total) et expressions.next (offset base64 de
-// la page suivante). On parcourt ?p=1, 2, 3... jusqu'a ce qu'une page n'apporte
-// aucun nouvel episode. L'audio se resout ensuite via /transistor/aod/{id}.
-func (c *Client) serieEpisodes(path string) ([]itunes.Episode, error) {
-	base := "https://www.radiofrance.fr/" + strings.Trim(path, "/") + "/__data.json"
+// serieEpisodes lit les episodes d'une serie de Radio France. Ils sont pagines
+// dans le __data.json de la page (SvelteKit) : le concept expose
+// expressionCount (total) et expressions.next (offset base64 de la page
+// suivante). On parcourt ?p=1, 2, 3... jusqu'a ce qu'une page n'apporte aucun
+// nouvel episode. L'audio et l'uuid viennent du registre (c.Reg) ; seuls les
+// episodes inconnus, indisponibles a revoir ou a revalider passent par
+// /transistor/aod/{id}, au plus paralleleAod a la fois. Rend aussi l'URL du
+// flux RSS de la serie (champ rssFeed, vide si absent).
+//
+// Jamais de liste partielle (BUGS.md B4) : un refus, une erreur serveur ou
+// reseau sur une page ou un aod fait echouer toute la serie. Seul un episode
+// sans audio (aod 404 "No available source", comme le site l'ecarte) est omis.
+func (c *Client) serieEpisodes(path string, paralleleAod int) ([]itunes.Episode, string, error) {
+	chemin := strings.Trim(path, "/")
+	base := rfBase + "/" + chemin + "/__data.json"
 	var eps []epSerie
 	vus := map[string]bool{}
+	rss := ""
 	const maxPages = 60 // garde-fou : ~1200 episodes au plus
 	for page := 1; page <= maxPages; page++ {
 		url := base
 		if page > 1 {
 			url = base + "?p=" + strconv.Itoa(page)
 		}
-		raw, err := c.fetch(url)
+		raw, st, err := c.requete(url)
 		if err != nil {
-			if page == 1 {
-				return nil, err
-			}
-			break // une page en trop a echoue : on s'arrete sur ce qu'on a
+			return nil, "", err
+		}
+		if st == http.StatusNotFound && page > 1 {
+			break // page au-dela de la derniere
+		}
+		if st != http.StatusOK {
+			return nil, "", fmt.Errorf("HTTP %d", st)
+		}
+		if page == 1 {
+			rss = rssSerie(raw, chemin)
 		}
 		avant := len(eps)
 		eps = parserPageSerie(raw, eps, vus)
@@ -79,36 +102,105 @@ func (c *Client) serieEpisodes(path string) ([]itunes.Episode, error) {
 		}
 	}
 	if len(eps) == 0 {
-		return nil, fmt.Errorf("aucun episode dans %s", path)
+		return nil, "", fmt.Errorf("aucun episode dans %s", chemin)
 	}
 
-	// Resoudre l'audio de chaque episode via aod, en parallele borne.
-	out := make([]itunes.Episode, len(eps))
-	type res struct {
-		i   int
-		url string
-	}
-	ch := make(chan res, len(eps))
-	sem := make(chan struct{}, 6)
+	maintenant := time.Now()
+	ids := make([]string, len(eps))
 	for i, e := range eps {
-		go func(i int, id string) {
+		ids[i] = e.id
+	}
+	p := c.Reg.planifier(ids, maintenant)
+	urls := make([]string, len(eps))
+	uuids := make([]string, len(eps))
+	for i, e := range p.connus {
+		urls[i], uuids[i] = e.URL, e.UUID
+	}
+
+	// Resolutions aod, en parallele borne. Au premier echec bloquant, celles pas
+	// encore lancees sont abandonnees.
+	resURL := make([]string, len(eps))
+	resErr := make([]error, len(eps))
+	lance := make([]bool, len(eps))
+	sem := make(chan struct{}, max(paralleleAod, 1))
+	var abandon atomic.Bool
+	var wg sync.WaitGroup
+	for _, i := range p.aResoudre {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			ch <- res{i, c.aodMP3(id)}
-		}(i, e.id)
+			if abandon.Load() {
+				return
+			}
+			lance[i] = true
+			resURL[i], resErr[i] = c.aodMP3(eps[i].id)
+			if resErr[i] != nil && !errors.Is(resErr[i], errIndisponible) {
+				abandon.Store(true)
+			}
+		}(i)
 	}
-	for range eps {
-		r := <-ch
-		e := eps[r.i]
+	wg.Wait()
+
+	// Bilan : les resolutions reussies sont enregistrees meme si la serie
+	// echoue (elles ne seront pas a refaire).
+	var fatale error
+	nouveaux, indispo := 0, 0
+	for _, i := range p.aResoudre {
+		e := eps[i]
+		titre := strings.TrimSpace(e.title)
+		switch err := resErr[i]; {
+		case !lance[i]:
+		case err == nil:
+			if _, connu := p.connus[i]; !connu {
+				nouveaux++
+			}
+			urls[i] = resURL[i]
+			uuids[i] = itunes.UUIDDeterministe(cleEpisodeRF(resURL[i], e.id))
+			if c.Reg != nil {
+				uuids[i] = c.Reg.resolu(e.id, titre, resURL[i], uuids[i], maintenant)
+			}
+		case errors.Is(err, errIndisponible):
+			urls[i], uuids[i] = "", ""
+			indispo++
+			if c.Reg != nil {
+				c.Reg.indisponible(e.id, titre, maintenant)
+			}
+		case fatale == nil:
+			fatale = err
+		}
+	}
+	if c.Reg != nil {
+		if err := c.Reg.Sauver(); err != nil {
+			log.Printf("radiofrance : registre non sauvegarde (%v)", err)
+		}
+	}
+	if len(p.aResoudre) > 0 || len(p.indispo) > 0 {
+		log.Printf("radiofrance %s : %d episode(s), %d connu(s), %d aod (%d nouveau(x), %d revalidation(s)), %d sans audio",
+			chemin, len(eps), len(p.connus), len(p.aResoudre), nouveaux, p.revalidions, indispo+len(p.indispo))
+	}
+	if fatale != nil {
+		return nil, "", fatale
+	}
+
+	var out []itunes.Episode
+	for i, e := range eps {
+		if urls[i] == "" || uuids[i] == "" {
+			continue // sans audio : ecarte, comme sur le site
+		}
 		img := ""
 		if e.visual != "" {
 			img = "https://www.radiofrance.fr/pikapi/images/" + e.visual + "/560x315?webp=true"
 		}
-		out[r.i] = itunes.Episode{
-			ID: e.id, UUID: itunes.UUIDDeterministe(cleEpisodeRF(r.url, e.id)),
+		out = append(out, itunes.Episode{
+			ID: e.id, UUID: uuids[i],
 			Title: strings.TrimSpace(e.title), Desc: strings.TrimSpace(e.desc), Image: img,
-			Duration: e.dur, Published: e.pub, AudioSrc: r.url, Playable: r.url != "",
-		}
+			Duration: e.dur, Published: e.pub, AudioSrc: urls[i], Playable: true,
+		})
+	}
+	if len(out) == 0 {
+		return nil, "", fmt.Errorf("aucun episode disponible dans %s", chemin)
 	}
 	// Ordre naturel : par titre, en comparant les nombres comme des nombres
 	// ("Episode 2/12" avant "Episode 10/12", et non l'inverse). Repli sur la date
@@ -119,14 +211,74 @@ func (c *Client) serieEpisodes(path string) ([]itunes.Episode, error) {
 		}
 		return out[i].Published < out[j].Published
 	})
-	// Ecarter ceux dont l'audio n'a pas pu etre resolu.
-	filtre := out[:0]
-	for _, e := range out {
-		if e.Playable {
-			filtre = append(filtre, e)
+	return out, rss, nil
+}
+
+// URLAudio resout a nouveau l'URL audio d'un episode connu (avant son
+// telechargement : l'URL du registre a pu perimer si RF a republie le media).
+// Met le registre a jour. errIndisponible si l'episode n'a plus d'audio.
+func (c *Client) URLAudio(id string) (string, error) {
+	u, err := c.aodMP3(id)
+	if c.Reg != nil {
+		t := time.Now()
+		switch {
+		case err == nil:
+			if e, ok := c.Reg.Entree(id); ok && e.UUID != "" {
+				c.Reg.resolu(id, "", u, e.UUID, t)
+			}
+		case errors.Is(err, errIndisponible):
+			if _, ok := c.Reg.Entree(id); ok {
+				c.Reg.indisponible(id, "", t)
+			}
+		}
+		if e := c.Reg.Sauver(); e != nil {
+			log.Printf("radiofrance : registre non sauvegarde (%v)", e)
 		}
 	}
-	return filtre, nil
+	return u, err
+}
+
+// EstIndisponible indique si err signale un episode sans audio.
+func EstIndisponible(err error) bool { return errors.Is(err, errIndisponible) }
+
+// rssSerie extrait de la premiere page __data.json l'URL du flux RSS de la
+// serie (concept dont le chemin est chemin), vide si absente.
+func rssSerie(raw, chemin string) string {
+	var doc struct {
+		Nodes []struct {
+			Data json.RawMessage `json:"data"`
+		} `json:"nodes"`
+	}
+	if json.Unmarshal([]byte(raw), &doc) != nil {
+		return ""
+	}
+	rss := ""
+	for _, n := range doc.Nodes {
+		if rss != "" || len(n.Data) == 0 || string(n.Data) == "null" {
+			continue
+		}
+		var arr []any
+		if json.Unmarshal(n.Data, &arr) != nil {
+			continue
+		}
+		parcourir(resoudre(arr, 0, map[int]any{}, map[int]bool{}), func(o map[string]any) {
+			if rss != "" {
+				return
+			}
+			if tn, _ := o["__typename"].(string); tn != "Concept" {
+				return
+			}
+			href, _ := o["href"].(string)
+			chem, _ := o["path"].(string)
+			if href != "/"+chemin && chem != chemin {
+				return
+			}
+			if f, _ := o["rssFeed"].(string); strings.HasPrefix(f, "https://") || strings.HasPrefix(f, "http://") {
+				rss = f
+			}
+		})
+	}
+	return rss
 }
 
 // compareNaturel compare deux chaines en traitant chaque suite de chiffres comme
@@ -263,11 +415,23 @@ func estPromoRF(titre, desc string, dur int) bool {
 	return false
 }
 
-// aodMP3 resout l'URL mp3 d'un episode via /transistor/aod/{id}.
-func (c *Client) aodMP3(id string) string {
-	raw, err := c.fetch("https://www.radiofrance.fr/transistor/aod/" + id)
+// errIndisponible : l'episode n'a pas d'audio ecoutable (aod 404 "No available
+// source", ou aucune source mp3/m4a). Il est ecarte, comme sur le site.
+var errIndisponible = errors.New("audio indisponible")
+
+// aodMP3 resout l'URL mp3 (a defaut m4a) d'un episode via /transistor/aod/{id}.
+// Erreur errIndisponible si l'episode n'a pas d'audio ; toute autre erreur
+// (refus, serveur, reseau, reponse illisible) est bloquante pour la serie.
+func (c *Client) aodMP3(id string) (string, error) {
+	raw, st, err := c.requete("https://www.radiofrance.fr/transistor/aod/" + id)
 	if err != nil {
-		return ""
+		return "", err
+	}
+	if st == http.StatusNotFound {
+		return "", errIndisponible
+	}
+	if st != http.StatusOK {
+		return "", fmt.Errorf("aod %s : HTTP %d", id, st)
 	}
 	var d struct {
 		Sources []struct {
@@ -275,18 +439,21 @@ func (c *Client) aodMP3(id string) string {
 		} `json:"sources"`
 	}
 	if json.Unmarshal([]byte(raw), &d) != nil {
-		return ""
+		return "", fmt.Errorf("aod %s : reponse illisible", id)
 	}
 	var m4a string
 	for _, s := range d.Sources {
 		if strings.HasSuffix(s.URL, ".mp3") {
-			return s.URL // mp3 prefere : format accepte par l'enceinte
+			return s.URL, nil // mp3 prefere : format accepte par l'enceinte
 		}
 		if strings.HasSuffix(s.URL, ".m4a") {
 			m4a = s.URL
 		}
 	}
-	return m4a
+	if m4a == "" {
+		return "", errIndisponible
+	}
+	return m4a, nil
 }
 
 // resoudre reconstitue le graphe devalue de SvelteKit : les valeurs des champs

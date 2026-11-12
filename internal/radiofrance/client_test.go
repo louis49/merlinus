@@ -106,19 +106,11 @@ func TestRequeteReessais(t *testing.T) {
 		}
 		_, _ = w.Write([]byte("ok"))
 	}
-	f.routes[hote+"/limite"] = statut(http.StatusTooManyRequests)
 	f.routes[hote+"/absent"] = statut(http.StatusNotFound)
 
 	// 2 echecs 503 puis succes : 3 tentatives au total.
 	if body, err := c.fetch("https://" + hote + "/instable"); err != nil || body != "ok" {
 		t.Errorf("instable : %q, %v", body, err)
-	}
-	// 429 persistant : 3 tentatives puis erreur.
-	if _, err := c.fetch("https://" + hote + "/limite"); err == nil {
-		t.Error("429 : erreur attendue")
-	}
-	if got := f.nbAppels(hote + "/limite"); got != 3 {
-		t.Errorf("429 : %d tentatives, attendu 3", got)
 	}
 	// 404 : deterministe, une seule tentative.
 	if _, err := c.fetch("https://" + hote + "/absent"); err == nil || !strings.Contains(err.Error(), "404") {
@@ -200,18 +192,19 @@ func aod(urls ...string) func(http.ResponseWriter, *http.Request) {
 }
 
 // Feed nominal : episodes via la pagination __data.json + aod, description et
-// image de serie via le flux RSS (forme https podcast_<uuid> preferee).
+// image de serie via le flux RSS (champ rssFeed du concept de la serie).
 func TestFeedVoiePaginee(t *testing.T) {
 	c, f := nouveauClient(t)
 	chemin := "franceinter/podcasts/serie-test"
-	f.routes[hote+"/"+chemin] = texte(`<html>
-<a href="http://radiofrance-podcast.net/podcast09/rss_12345.xml">ancien</a>
-<a href="https://radiofrance-podcast.net/podcast09/podcast_0a1b2c3d-1111-2222-3333-444455556666.xml">rss</a>
-</html>`)
-	page1 := pageData(t, map[string]any{"items": []any{
-		episodeRF(idEp1, "Episode 10", "dix", 900, "v10", "2024-01-10"),
-		episodeRF(idEp2, "Episode 2", "deux", 800, "", "2024-01-02"),
-	}})
+	page1 := pageData(t, map[string]any{
+		"concept": map[string]any{"__typename": "Concept", "href": "/" + chemin, "path": chemin,
+			"rssFeed": "https://radiofrance-podcast.net/podcast09/podcast_0a1b2c3d-1111-2222-3333-444455556666.xml"},
+		"autre": map[string]any{"__typename": "Concept", "href": "/franceinter/podcasts/autre",
+			"rssFeed": "http://radiofrance-podcast.net/podcast09/rss_12345.xml"},
+		"items": []any{
+			episodeRF(idEp1, "Episode 10", "dix", 900, "v10", "2024-01-10"),
+			episodeRF(idEp2, "Episode 2", "deux", 800, "", "2024-01-02"),
+		}})
 	page2 := pageData(t, map[string]any{"items": []any{
 		episodeRF(idEp3, "Episode 1", "un", 700, "", "2024-01-01"),
 	}})
@@ -251,9 +244,12 @@ func TestFeedVoiePaginee(t *testing.T) {
 	if e10.Desc != "dix" || e10.Duration != 900 || e10.Published != "2024-01-10" || !e10.Playable {
 		t.Errorf("ep10 : %+v", e10)
 	}
-	// Le flux "rss_12345" (non prefere) n'a pas ete consulte.
+	// Le flux d'une autre serie n'a pas ete consulte, ni la page HTML (B8).
 	if n := f.nbAppels("radiofrance-podcast.net/podcast09/rss_12345.xml"); n != 0 {
-		t.Errorf("flux non prefere consulte %d fois", n)
+		t.Errorf("flux d'une autre serie consulte %d fois", n)
+	}
+	if n := f.nbAppels(hote + "/" + chemin); n != 0 {
+		t.Errorf("page HTML de la serie chargee %d fois", n)
 	}
 	// Pagination : la page 3 (identique a la 2) a ete lue puis a arrete la boucle.
 	if f.nbAppels(hote+"/"+chemin+"/__data.json?p=3") != 1 || f.nbAppels(hote+"/"+chemin+"/__data.json?p=4") != 0 {
@@ -261,23 +257,19 @@ func TestFeedVoiePaginee(t *testing.T) {
 	}
 }
 
-// Pagination indisponible : repli sur le flux RSS (premier trouve si aucun n'a
-// la forme https podcast_<uuid>).
-func TestFeedRepliRSS(t *testing.T) {
+// Pagination indisponible : PAS de repli sur le flux RSS (ses uuid ne sont pas
+// ceux de la boite, BUGS.md B5) : la serie est en erreur, le RSS non consulte.
+func TestFeedSansRepliRSS(t *testing.T) {
 	c, f := nouveauClient(t)
 	chemin := "franceinter/podcasts/ancien"
 	f.routes[hote+"/"+chemin] = texte(`x "https://radiofrance-podcast.net/podcast09/rss_777.xml" y`)
 	// __data.json absent (404).
 	f.routes["radiofrance-podcast.net/podcast09/rss_777.xml"] = texte(fluxRSS)
-	feed, err := c.Feed(chemin)
-	if err != nil {
-		t.Fatalf("Feed : %v", err)
+	if feed, err := c.Feed(chemin); err == nil {
+		t.Fatalf("erreur attendue, episodes %+v", feed.Episodes)
 	}
-	if feed.Description != "Une serie pour les petits." {
-		t.Errorf("description : %q", feed.Description)
-	}
-	if len(feed.Episodes) != 1 || feed.Episodes[0].AudioSrc != "https://exemple.test/rss.mp3" {
-		t.Errorf("episodes : %+v", feed.Episodes)
+	if n := f.nbAppels("radiofrance-podcast.net/podcast09/rss_777.xml"); n != 0 {
+		t.Errorf("flux RSS consulte %d fois", n)
 	}
 }
 

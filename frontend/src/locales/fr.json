@@ -55,6 +55,8 @@
   "ihm_cat_back": "← Retour au catalogue",
   "ihm_cat_loading": "Chargement…",
   "ihm_cat_error": "Impossible de charger le catalogue.",
+  "err_rf_refus": "Radio France refuse temporairement nos demandes. Réessaie après {heure}.",
+  "err_rf_indisponible": "Cet épisode n'est plus disponible chez Radio France.",
   "ihm_cat_empty": "Aucune série trouvée.",
   "ihm_ep_vide": "Aucun épisode n'est disponible à l'écoute pour cette série : la source ne fournit pas (ou plus) l'audio.",
   "ihm_cat_retry": "Réessayer",
